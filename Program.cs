@@ -1,28 +1,14 @@
 var builder = WebApplication.CreateBuilder(args);
 
-// FIX dla Render / Docker: wyłącz private font collection (bo nie działa na Linux)
-Config.UseLegacyPreview = false;
-Config.EnablePrivateFontCollection = false;
-// Add services to the container.
-builder.Services.AddControllers();
+// 🔥 FIX for Linux + Docker + FastReport
+Environment.SetEnvironmentVariable("FASTREPORT_NOCUSTOMFONTS", "1");
+Environment.SetEnvironmentVariable("FASTREPORT_NOGLOBALFONT", "1");
 
-// CORS – dopuszczamy każde żądanie (tylko do testów!)
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll",
-        policy => policy.AllowAnyOrigin()
-                        .AllowAnyHeader()
-                        .AllowAnyMethod());
-});
+builder.Services.AddControllers();
 
 var app = builder.Build();
 
-app.UseCors("AllowAll");
-
-// Map controllers
 app.MapControllers();
-
-// Test endpoint
-app.MapGet("/", () => "FastReportService działa! Endpoint PDF: /reports/test");
+app.MapGet("/", () => "FastReport działa na Render!");
 
 app.Run();
