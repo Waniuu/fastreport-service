@@ -1,5 +1,10 @@
+using FastReport.Utils;
+
 var builder = WebApplication.CreateBuilder(args);
 
+// FIX dla Render / Docker: wyłącz private font collection (bo nie działa na Linux)
+Config.UseLegacyPreview = false;
+Config.EnablePrivateFontCollection = false;
 // Add services to the container.
 builder.Services.AddControllers();
 
