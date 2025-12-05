@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Report ScriptLanguage="CSharp">
+  <ReportPage Name="Page1">
+    <ReportTitleBand Name="ReportTitle1" Height="40">
+      <TextObject Name="Text1" Width="700" Height="40" Text="Raport Testów FastReport" 
+                  Font="Arial, 18pt, style=Bold"/>
+    </ReportTitleBand>
+  </ReportPage>
+</Report>
