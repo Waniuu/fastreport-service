@@ -17,7 +17,7 @@ namespace FastReportService.Controllers
     public class ReportsController : ControllerBase
     {
         // =========================================================
-        // UNIWERSALNA METODA GENEROWANIA DLA WSZYSTKICH RAPORTÓW
+        // ENDPOINTY
         // =========================================================
         
         [HttpPost("questions-stats")]
@@ -26,8 +26,8 @@ namespace FastReportService.Controllers
             return GeneratePdfFromData(data, "RAPORT STATYSTYK", "Dane wygenerowane z bazy");
         }
 
-        [HttpPost("users")] // Obsługuje też stary endpoint
-        [HttpPost("students-list")]
+        [HttpPost("users")] 
+        [HttpPost("students-list")] // Obsługa obu nazw
         public IActionResult GenerateUsers([FromBody] List<Dictionary<string, object>> data)
         {
             return GeneratePdfFromData(data, "LISTA STUDENTÓW", "Aktualny wykaz osób w systemie");
@@ -52,49 +52,45 @@ namespace FastReportService.Controllers
         }
 
         // =========================================================
-        // GŁÓWNA LOGIKA (NAPRAWIONA)
+        // SILNIK GENEROWANIA
         // =========================================================
         
         private IActionResult GeneratePdfFromData(List<Dictionary<string, object>> jsonData, string title, string subtitle)
         {
             try 
             {
-                // 1. Ładowanie raportu
                 var report = new Report();
+                
+                // Ładowanie szablonu (z fallbackiem ścieżki)
                 string reportPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Reports", "raport_testow.frx");
-                if (!System.IO.File.Exists(reportPath))
-                {
-                     // Fallback, jeśli ścieżka jest inna w Dockerze
-                     reportPath = "Reports/raport_testow.frx";
-                }
+                if (!System.IO.File.Exists(reportPath)) reportPath = "Reports/raport_testow.frx";
+                
                 report.Load(reportPath);
                 
-                // 2. Naprawa wyglądu (Fonty/Kolory) - z zabezpieczeniem
-                try { FixReportVisuals(report); } catch { /* Ignorujemy błędy wizualne */ }
-                
-                // 3. Ustawiamy nagłówki
+                // Naprawa fontów
+                try { FixReportVisuals(report); } catch { }
+
+                // Nagłówki
                 SetText(report, "Title", title);
                 SetText(report, "Panel1Header", subtitle);
                 SetText(report, "Panel1Body", $"Data: {DateTime.Now:yyyy-MM-dd HH:mm}");
 
-                // 4. Konwersja JSON -> DataTable (z naprawą nazw kolumn!)
+                // Dane
                 var table = JsonToDataTable(jsonData);
 
-                // 5. Rejestracja Danych (KLUCZOWE DLA UNIKNIĘCIA ERROR 500)
-                // Musimy zarejestrować tabelę i WŁĄCZYĆ ją w słowniku raportu
+                // Rejestracja danych
                 report.RegisterData(table, "Dane");
                 report.GetDataSource("Dane").Enabled = true;
 
-                // 6. Czyszczenie starego szablonu
+                // Czyszczenie starego szablonu
                 DataBand dataBand = report.FindObject("ListBand") as DataBand;
                 if (dataBand != null)
                 {
                     dataBand.Objects.Clear();
-                    // Przypisanie źródła danych do bandu
                     dataBand.DataSource = report.GetDataSource("Dane");
                 }
 
-                // 7. Rysowanie tabeli (tylko jeśli są dane)
+                // Generowanie tabeli lub komunikatu
                 if (table.Rows.Count > 0)
                 {
                     BuildDynamicTable(report, table);
@@ -113,7 +109,6 @@ namespace FastReportService.Controllers
                     }
                 }
 
-                // 8. Generowanie PDF
                 report.Prepare();
 
                 using var ms = new MemoryStream();
@@ -125,13 +120,13 @@ namespace FastReportService.Controllers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[CRITICAL ERROR] {ex.Message}\n{ex.StackTrace}");
+                Console.WriteLine($"[ERROR] {ex.Message}\n{ex.StackTrace}");
                 return StatusCode(500, new { error = ex.Message, stack = ex.StackTrace });
             }
         }
 
         // =========================================================
-        // POMOCNICY
+        // METODY POMOCNICZE
         // =========================================================
 
         private DataTable JsonToDataTable(List<Dictionary<string, object>> list)
@@ -139,7 +134,7 @@ namespace FastReportService.Controllers
             DataTable table = new DataTable("Dane");
             if (list == null || list.Count == 0) return table;
 
-            // Tworzenie kolumn (Zamieniamy spacje na podkreślenia, bo FastReport tego nie lubi!)
+            // Tworzenie kolumn (bezpieczne nazwy bez spacji)
             foreach (var key in list[0].Keys)
             {
                 string safeColumnName = key.Replace(" ", "_").Replace(".", "");
@@ -152,12 +147,10 @@ namespace FastReportService.Controllers
                 int colIndex = 0;
                 foreach (var key in item.Keys)
                 {
-                    // Obsługa nulli z bazy danych
                     object val = item[key];
                     if (val == null) row[colIndex] = "";
                     else if (val is JsonElement je) row[colIndex] = je.ToString();
                     else row[colIndex] = val.ToString();
-                    
                     colIndex++;
                 }
                 table.Rows.Add(row);
@@ -171,14 +164,12 @@ namespace FastReportService.Controllers
             if (dataBand == null) return;
 
             TableObject table = new TableObject();
-            table.Name = "DynamicTable";
+            table.Name = "DynamicTable_" + Guid.NewGuid().ToString().Replace("-", "");
             table.Parent = dataBand;
             table.Width = 700; 
             table.Height = 25;
             
-            // Ważne: Tworzymy unikalne nazwy, żeby uniknąć konfliktów
-            table.CreateUniqueNames();
-            
+            // Konfiguracja wymiarów tabeli
             table.ColumnCount = data.Columns.Count;
             table.RowCount = 1; 
             
@@ -186,10 +177,21 @@ namespace FastReportService.Controllers
 
             for (int i = 0; i < data.Columns.Count; i++)
             {
+                // Ustawienie szerokości kolumny
                 table.Columns[i].Width = colWidth;
-                TableCell cell = table[0, i];
+
+                // --- TU BYŁ BŁĄD ---
+                // Poprawne indeksowanie: table[kolumna, wiersz]
+                // Wcześniej było table[0, i] (błędne), teraz jest table[i, 0] (poprawne)
+                TableCell cell = table[i, 0]; 
                 
-                // Używamy bezpiecznej nazwy kolumny (bez spacji)
+                // Zabezpieczenie na wypadek, gdyby komórka nie istniała
+                if (cell == null)
+                {
+                    cell = new TableCell();
+                    cell.Parent = table.Rows[0];
+                }
+                
                 string colName = data.Columns[i].ColumnName;
                 cell.Text = $"[Dane.{colName}]";
                 
@@ -201,15 +203,13 @@ namespace FastReportService.Controllers
                 cell.HorzAlign = HorzAlign.Center;
             }
             
-            // Nagłówki w Panel2 (zamiast kluczy z bazy, dajemy je jako tekst rozdzielony |)
+            // Nagłówki w Panel2 (opcjonalnie)
             var headerObj = report.FindObject("Panel2Header") as FastReport.TextObject;
             if (headerObj != null)
             {
-                // Zamieniamy z powrotem podkreślenia na spacje dla ładnego nagłówka
                 var headers = data.Columns.Cast<DataColumn>()
                                   .Select(c => c.ColumnName.Replace("_", " "))
                                   .ToArray();
-                                  
                 headerObj.Text = string.Join(" | ", headers);
                 headerObj.Font = new Font("DejaVu Sans", 9, FontStyle.Bold);
                 headerObj.TextFill = new SolidFill(Color.Black);
