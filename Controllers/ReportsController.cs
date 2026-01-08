@@ -28,19 +28,19 @@ namespace FastReportService.Controllers
         [HttpPost("users")]
         public IActionResult GenerateUsers([FromBody] List<Dictionary<string, object>> data)
         {
-            return GeneratePdfFromData(data, "LISTA UZYTKOWNIKOW", "Aktualny stan bazy danych");
+            return GeneratePdfFromData(data, "LISTA UŻYTKOWNIKÓW", "Aktualny stan bazy danych");
         }
 
         [HttpPost("tests-grouped")]
         public IActionResult GenerateTests([FromBody] List<Dictionary<string, object>> data)
         {
-            return GeneratePdfFromData(data, "HARMONOGRAM TESTOW", "Lista utworzonych egzaminow");
+            return GeneratePdfFromData(data, "HARMONOGRAM TESTÓW", "Lista utworzonych egzaminów");
         }
 
         [HttpPost("test-form")]
         public IActionResult GenerateCard([FromBody] List<Dictionary<string, object>> data)
         {
-            return GeneratePdfFromData(data, "KARTA WYNIKOW", "Szczegolowe wyniki studenta");
+            return GeneratePdfFromData(data, "KARTA WYNIKÓW", "Szczegółowe wyniki studenta");
         }
 
         // =========================================================
@@ -72,7 +72,7 @@ namespace FastReportService.Controllers
                 }
                 else
                 {
-                    SetText(report, "Panel2Body", "BRAK DANYCH SPELNIAJACYCH KRYTERIA.");
+                    SetText(report, "Panel2Body", "BRAK DANYCH SPEŁNIAJĄCYCH KRYTERIA.");
                 }
 
                 report.Prepare();
@@ -115,7 +115,7 @@ namespace FastReportService.Controllers
         }
 
         // =========================================================
-        // BUDOWANIE TABELI (Z POPRAWKĄ NA PADDING)
+        // BUDOWANIE TABELI (BEZ PADDINGU)
         // =========================================================
         
         private void BuildDynamicTable(Report report, DataTable data)
@@ -152,8 +152,8 @@ namespace FastReportService.Controllers
                 cell.Border.Color = Color.Black;
                 cell.VertAlign = VertAlign.Center;
                 
-                // --- TU BYŁ BŁĄD. TERAZ JEST POPRAWKA: ---
-                cell.Padding = new FastReport.Padding(2, 2, 2, 2);
+                // USUWAMY LINIĘ Z PADDINGIEM, ABY UNIKNĄĆ BŁĘDU CS0234
+                // cell.Padding = ... 
             }
             
             // Nagłówki kolumn w Panelu 2
