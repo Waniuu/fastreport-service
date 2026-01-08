@@ -23,7 +23,7 @@ namespace FastReportService.Controllers
             try 
             {
                 // Ścieżka do pliku czcionki w kontenerze Docker
-                string fontPath = Path.Combine(Directory.GetCurrentDirectory(), "Fonts", "OpenSans-Regular.ttf");
+              string fontPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Fonts", "OpenSans-Regular.ttf");
                 
                 if (System.IO.File.Exists(fontPath))
                 {
