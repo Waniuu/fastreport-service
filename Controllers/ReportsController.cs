@@ -1,10 +1,13 @@
 using FastReport;
 using FastReport.Export.PdfSimple;
 using FastReport.Utils;
+using FastReport.Table;
 using Microsoft.AspNetCore.Mvc;
 using System.Data;
-using System.Drawing; // Do klasy Font i Color
+using System.Drawing;
 using System.IO;
+using System.Text.Json; // Do obsługi JSON
+using System.Collections.Generic;
 
 namespace FastReportService.Controllers
 {
@@ -12,126 +15,169 @@ namespace FastReportService.Controllers
     [Route("reports")]
     public class ReportsController : ControllerBase
     {
-        // ==========================================
-        // 1. RAPORT: Statystyki pytań
-        // ==========================================
-        [HttpGet("questions-stats")]
-        public IActionResult GetQuestionsStats([FromQuery] int? id_banku, [FromQuery] int? id_kategorii)
-        {
-            var report = LoadAndFixReport();
-
-            SetText(report, "Title", "RAPORT STATYSTYK");
-            SetText(report, "Panel1Header", "Kryteria");
-            SetText(report, "Panel1Body", $"Bank: {id_banku}, Kat: {id_kategorii}");
-            SetText(report, "Panel2Header", "Info");
-            SetText(report, "Panel2Body", "Raport wygenerowany automatycznie.");
-
-            var table = new DataTable("Dane");
-            table.Columns.Add("Nazwa", typeof(string));
-            table.Columns.Add("Wartosc", typeof(string));
-            table.Rows.Add("Latwe", "15");
-            table.Rows.Add("Trudne", "8");
-
-            return ExportReport(report, table, "statystyki.pdf");
-        }
-
-        // ==========================================
-        // 2. RAPORT: Lista użytkowników
-        // ==========================================
-        [HttpGet("users")]
-        public IActionResult GetUsers([FromQuery] string? rola, [FromQuery] string? email)
-        {
-            var report = LoadAndFixReport();
-            SetText(report, "Title", "LISTA UZYTKOWNIKOW");
-            SetText(report, "Panel1Header", "Filtry");
-            SetText(report, "Panel1Body", $"Rola: {rola}");
-            
-            var table = new DataTable("Dane");
-            table.Columns.Add("Nazwa", typeof(string));
-            table.Columns.Add("Wartosc", typeof(string));
-            table.Rows.Add("Jan Kowalski", "Student");
-            
-            return ExportReport(report, table, "uzytkownicy.pdf");
-        }
+        // =========================================================
+        // UNIWERSALNA METODA GENEROWANIA DLA WSZYSTKICH RAPORTÓW
+        // =========================================================
         
-        // ==========================================
-        // 3. RAPORT: Testy pogrupowane
-        // ==========================================
-        [HttpGet("tests-grouped")]
-        public IActionResult GetTestsGrouped([FromQuery] string? start, [FromQuery] string? end)
+        [HttpPost("questions-stats")]
+        public IActionResult GenerateStats([FromBody] List<Dictionary<string, object>> data)
         {
-            var report = LoadAndFixReport();
-            SetText(report, "Title", "RAPORT TESTOW");
-            SetText(report, "Panel1Header", "Zakres dat");
-            SetText(report, "Panel1Body", $"Od: {start} Do: {end}");
-            SetText(report, "Panel2Header", "Status");
-            SetText(report, "Panel2Body", "Wydajnosc systemu."); // Bez polskich znaków w kodzie dla bezpieczeństwa
-
-            var table = new DataTable("Dane");
-            table.Columns.Add("Nazwa", typeof(string));
-            table.Columns.Add("Wartosc", typeof(string));
-            table.Rows.Add("Test SQL", "2025");
-            return ExportReport(report, table, "testy.pdf");
+            return GeneratePdfFromData(data, "RAPORT STATYSTYK", "Dane wygenerowane z bazy");
         }
 
-        // ==========================================
-        // 4. RAPORT: Karta egzaminacyjna
-        // ==========================================
-        [HttpGet("test-form")]
-        public IActionResult GetTestForm([FromQuery] int? id_testu, [FromQuery] int? id_uzytkownika)
+        [HttpPost("users")]
+        public IActionResult GenerateUsers([FromBody] List<Dictionary<string, object>> data)
         {
-            var report = LoadAndFixReport();
-            SetText(report, "Title", "KARTA EGZAMINU");
-            SetText(report, "Panel1Header", "Dane Studenta");
-            SetText(report, "Panel1Body", $"Student ID: {id_uzytkownika}");
-            SetText(report, "Panel2Header", "Wynik");
-            SetText(report, "Panel2Body", "Zaliczono.");
-
-            var table = new DataTable("Dane");
-            table.Columns.Add("Nazwa", typeof(string));
-            table.Columns.Add("Wartosc", typeof(string));
-            table.Rows.Add("Pytanie 1", "OK");
-            return ExportReport(report, table, "karta.pdf");
+            return GeneratePdfFromData(data, "LISTA UŻYTKOWNIKÓW", "Aktualny stan bazy danych");
         }
 
-
-        // ==========================================
-        // METODY POMOCNICZE (TUTAJ BYŁ BŁĄD)
-        // ==========================================
-
-        private Report LoadAndFixReport()
+        [HttpPost("tests-grouped")]
+        public IActionResult GenerateTests([FromBody] List<Dictionary<string, object>> data)
         {
-            var report = new Report();
-            report.Load("Reports/raport_testow.frx");
+            return GeneratePdfFromData(data, "HARMONOGRAM TESTÓW", "Lista utworzonych egzaminów");
+        }
+
+        [HttpPost("test-form")]
+        public IActionResult GenerateCard([FromBody] List<Dictionary<string, object>> data)
+        {
+            return GeneratePdfFromData(data, "KARTA WYNIKÓW", "Szczegółowe wyniki studenta");
+        }
+
+        // =========================================================
+        // LOGIKA: JSON -> DATATABLE -> PDF
+        // =========================================================
+        
+        private IActionResult GeneratePdfFromData(List<Dictionary<string, object>> jsonData, string title, string subtitle)
+        {
+            try 
+            {
+                var report = new Report();
+                report.Load("Reports/raport_testow.frx");
+                
+                // 1. Naprawiamy wygląd (fonty, kolory)
+                FixReportVisuals(report);
+                
+                // 2. Ustawiamy nagłówki
+                SetText(report, "Title", title);
+                SetText(report, "Panel1Header", subtitle);
+                SetText(report, "Panel1Body", $"Wygenerowano: {DateTime.Now:yyyy-MM-dd HH:mm}");
+
+                // 3. Konwertujemy JSON na DataTable
+                var table = JsonToDataTable(jsonData);
+
+                // 4. Budujemy dynamiczną tabelę
+                if (table.Rows.Count > 0)
+                {
+                    BuildDynamicTable(report, table);
+                }
+                else
+                {
+                    SetText(report, "Panel2Body", "BRAK DANYCH SPEŁNIAJĄCYCH KRYTERIA.");
+                }
+
+                report.Prepare();
+
+                using var ms = new MemoryStream();
+                var pdf = new PDFSimpleExport();
+                report.Export(pdf, ms);
+                ms.Position = 0;
+
+                return File(ms.ToArray(), "application/pdf", "raport.pdf");
+            }
+            catch (Exception ex)
+            {
+                // W razie błędu zwracamy pusty PDF z informacją, żeby nie crashować frontendu
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        // Helper: Zamiana listy słowników na DataTable
+        private DataTable JsonToDataTable(List<Dictionary<string, object>> list)
+        {
+            DataTable table = new DataTable("Dane");
+            if (list == null || list.Count == 0) return table;
+
+            // Tworzenie kolumn na podstawie pierwszego wiersza
+            foreach (var key in list[0].Keys)
+            {
+                table.Columns.Add(key, typeof(string));
+            }
+
+            // Wypełnianie danymi
+            foreach (var item in list)
+            {
+                var row = table.NewRow();
+                foreach (var key in item.Keys)
+                {
+                    // Konwersja wszystkiego na string dla bezpieczeństwa
+                    row[key] = item[key]?.ToString() ?? "";
+                }
+                table.Rows.Add(row);
+            }
+
+            return table;
+        }
+
+        // =========================================================
+        // BUDOWANIE TABELI (TO SAMO CO WCZEŚNIEJ)
+        // =========================================================
+        
+        private void BuildDynamicTable(Report report, DataTable data)
+        {
+            report.RegisterData(data, "Dane");
+            DataBand dataBand = report.FindObject("ListBand") as DataBand;
+            if (dataBand == null) return;
+
+            dataBand.Objects.Clear();
+            dataBand.DataSource = report.GetDataSource("Dane");
+
+            TableObject table = new TableObject();
+            table.Name = "DynamicTable";
+            table.Parent = dataBand;
+            table.Width = 700; 
+            table.Height = 30; // Wysokość wiersza
             
-            FixReportVisuals(report); 
+            table.ColumnCount = data.Columns.Count;
+            table.RowCount = 1; 
             
-            return report;
+            float colWidth = 700f / data.Columns.Count;
+
+            for (int i = 0; i < data.Columns.Count; i++)
+            {
+                table.Columns[i].Width = colWidth;
+                TableCell cell = table[0, i];
+                cell.Text = $"[Dane.{data.Columns[i].ColumnName}]";
+                cell.Font = new Font("DejaVu Sans", 9, FontStyle.Regular);
+                cell.TextFill = new SolidFill(Color.Black);
+                cell.Border.Lines = BorderLines.All;
+                cell.Border.Color = Color.Black;
+                cell.VertAlign = VertAlign.Center;
+                cell.Padding = new Padding(2, 2, 2, 2);
+            }
+            
+            // Nagłówki kolumn w Panelu 2
+            var headerObj = report.FindObject("Panel2Header") as FastReport.TextObject;
+            if (headerObj != null)
+            {
+                headerObj.Text = string.Join(" | ", GetColumnNames(data));
+                headerObj.Font = new Font("DejaVu Sans", 9, FontStyle.Bold);
+                headerObj.TextFill = new SolidFill(Color.Black);
+            }
+            var p2b = report.FindObject("Panel2Body") as FastReport.TextObject;
+            if(p2b != null) p2b.Text = "";
         }
 
         private void FixReportVisuals(Report report)
         {
-            // Używamy czcionki systemowej dostępnej w Dockerze (zainstalowanej w Dockerfile)
             string fontName = "DejaVu Sans"; 
-
             foreach (Base obj in report.AllObjects)
             {
-                // 1. NAPRAWA TEKSTU: Zmień czcionkę na DejaVu ORAZ kolor na CZARNY
                 if (obj is FastReport.TextObject textObj)
                 {
                     textObj.Font = new Font(fontName, textObj.Font.Size, textObj.Font.Style);
-                    
-                    // --- POPRAWKA: Używamy SolidFill zamiast SolidBrush ---
-                    textObj.TextFill = new SolidFill(Color.Black); 
+                    textObj.TextFill = new SolidFill(Color.Black);
                 }
-                
-                // 2. NAPRAWA TŁA: Jeśli tło ma przezroczystość, usuń ją (Linux tego nie lubi)
-                if (obj is FastReport.ShapeObject shapeObj)
-                {
-                    // Zmieniamy na jasnoszare, pełne tło (bez Blend)
-                    // Tutaj SolidFill było poprawne
-                    shapeObj.Fill = new SolidFill(Color.LightGray);
-                }
+                if (obj is FastReport.ShapeObject shapeObj) shapeObj.Fill = new SolidFill(Color.LightGray);
             }
         }
 
@@ -141,31 +187,11 @@ namespace FastReportService.Controllers
             if (obj != null) obj.Text = text;
         }
 
-        private IActionResult ExportReport(Report report, DataTable data, string fileName)
+        private string[] GetColumnNames(DataTable table)
         {
-            report.RegisterData(data, "Dane");
-            var dataBand = report.FindObject("ListBand") as FastReport.DataBand;
-            if (dataBand != null) dataBand.DataSource = report.GetDataSource("Dane");
-            
-            var listItem = report.FindObject("ListItem") as FastReport.TextObject;
-            if(listItem != null) 
-            {
-                listItem.Text = "[Dane.Nazwa]: [Dane.Wartosc]";
-                
-                // --- POPRAWKA: Używamy SolidFill zamiast SolidBrush ---
-                listItem.TextFill = new SolidFill(Color.Black);
-                
-                listItem.Font = new Font("DejaVu Sans", 10, FontStyle.Regular);
-            }
-
-            report.Prepare();
-
-            using var ms = new MemoryStream();
-            var pdf = new PDFSimpleExport();
-            report.Export(pdf, ms);
-            ms.Position = 0;
-
-            return File(ms.ToArray(), "application/pdf", fileName);
+            string[] names = new string[table.Columns.Count];
+            for(int i=0; i<table.Columns.Count; i++) names[i] = table.Columns[i].ColumnName;
+            return names;
         }
     }
 }
