@@ -4,9 +4,9 @@ using FastReport.Utils;
 using FastReport.Table;
 using Microsoft.AspNetCore.Mvc;
 using System.Data;
-using System.Drawing; // Do klasy Font i Color
+using System.Drawing;
 using System.IO;
-using System.Text.Json; // Do obsługi JSON
+using System.Text.Json;
 using System.Collections.Generic;
 
 namespace FastReportService.Controllers
@@ -15,78 +15,72 @@ namespace FastReportService.Controllers
     [Route("reports")]
     public class ReportsController : ControllerBase
     {
+        // 1. LISTA STUDENTÓW
+        [HttpPost("students-list")]
+        public IActionResult ReportStudents([FromBody] List<Dictionary<string, object>> data)
+        {
+            return GeneratePdfFromData(data, "LISTA STUDENTÓW", "Aktualny wykaz osób w systemie");
+        }
+
+        // 2. WYNIKI EGZAMINU (Dla konkretnego testu)
+        [HttpPost("exam-results")]
+        public IActionResult ReportExam([FromBody] List<Dictionary<string, object>> data)
+        {
+            return GeneratePdfFromData(data, "PROTOKÓŁ EGZAMINACYJNY", "Zestawienie wyników dla wybranego testu");
+        }
+
+        // 3. BANK PYTAŃ
+        [HttpPost("questions-bank")]
+        public IActionResult ReportQuestions([FromBody] List<Dictionary<string, object>> data)
+        {
+            return GeneratePdfFromData(data, "BANK PYTAŃ", "Wykaz pytań wg kategorii i trudności");
+        }
+
+        // 4. STATYSTYKA TESTÓW
+        [HttpPost("tests-stats")]
+        public IActionResult ReportStats([FromBody] List<Dictionary<string, object>> data)
+        {
+            return GeneratePdfFromData(data, "STATYSTYKA ZDAWALNOŚCI", "Analiza wyników i popularności testów");
+        }
+
         // =========================================================
-        // UNIWERSALNA METODA GENEROWANIA DLA WSZYSTKICH RAPORTÓW
+        // SILNIK GENEROWANIA TABELI (Bezpieczny dla Linuxa)
         // =========================================================
         
-        [HttpPost("questions-stats")]
-        public IActionResult GenerateStats([FromBody] List<Dictionary<string, object>> data)
-        {
-            return GeneratePdfFromData(data, "RAPORT STATYSTYK", "Dane wygenerowane z bazy");
-        }
-
-        [HttpPost("users")]
-        public IActionResult GenerateUsers([FromBody] List<Dictionary<string, object>> data)
-        {
-            return GeneratePdfFromData(data, "LISTA UŻYTKOWNIKÓW", "Aktualny stan bazy danych");
-        }
-
-        [HttpPost("tests-grouped")]
-        public IActionResult GenerateTests([FromBody] List<Dictionary<string, object>> data)
-        {
-            return GeneratePdfFromData(data, "HARMONOGRAM TESTÓW", "Lista utworzonych egzaminów");
-        }
-
-        [HttpPost("test-form")]
-        public IActionResult GenerateCard([FromBody] List<Dictionary<string, object>> data)
-        {
-            return GeneratePdfFromData(data, "KARTA WYNIKÓW", "Szczegółowe wyniki studenta");
-        }
-
-        // =========================================================
-        // LOGIKA: JSON -> DATATABLE -> PDF
-        // =========================================================
-        
-   private IActionResult GeneratePdfFromData(List<Dictionary<string, object>> jsonData, string title, string subtitle)
+        private IActionResult GeneratePdfFromData(List<Dictionary<string, object>> jsonData, string title, string subtitle)
         {
             try 
             {
                 var report = new Report();
                 report.Load("Reports/raport_testow.frx");
                 
-                // 1. Naprawiamy wygląd (fonty, kolory)
-                FixReportVisuals(report);
+                FixReportVisuals(report); // Fonty i kolory
                 
-                // 2. Ustawiamy nagłówki
+                // Ustawiamy nagłówki
                 SetText(report, "Title", title);
                 SetText(report, "Panel1Header", subtitle);
-                SetText(report, "Panel1Body", $"Wygenerowano: {DateTime.Now:yyyy-MM-dd HH:mm}");
+                SetText(report, "Panel1Body", $"Data generowania: {DateTime.Now:yyyy-MM-dd HH:mm}");
 
-                // 3. Konwertujemy JSON na DataTable
+                // JSON -> DataTable
                 var table = JsonToDataTable(jsonData);
 
-                // --- KLUCZOWA ZMIANA: CZYŚCIMY SZABLON ZAWSZE ---
-                // Najpierw usuwamy stare śmieci ("Element listy...") z szablonu
+                // Czyścimy szablon
                 DataBand dataBand = report.FindObject("ListBand") as DataBand;
-                if (dataBand != null)
-                {
-                    dataBand.Objects.Clear(); // Usuwa stary tekst z .frx
-                }
+                if (dataBand != null) dataBand.Objects.Clear();
 
-                // 4. Budujemy dynamiczną tabelę TYLKO jak są dane
+                // Rysujemy tabelę LUB komunikat o braku danych
                 if (table.Rows.Count > 0)
                 {
                     BuildDynamicTable(report, table);
                 }
                 else
                 {
-                    // Jak nie ma danych, wpisujemy ładny komunikat zamiast tabeli
                     if (dataBand != null)
                     {
                         var noDataText = new FastReport.TextObject();
                         noDataText.Parent = dataBand;
                         noDataText.Bounds = new RectangleF(0, 0, 700, 30);
-                        noDataText.Text = "BRAK DANYCH W BAZIE DLA WYBRANYCH KRYTERIÓW";
+                        noDataText.Text = "BRAK DANYCH DO WYŚWIETLENIA";
                         noDataText.Font = new Font("DejaVu Sans", 12, FontStyle.Bold);
                         noDataText.TextFill = new SolidFill(Color.Red);
                         noDataText.HorzAlign = HorzAlign.Center;
@@ -108,38 +102,10 @@ namespace FastReportService.Controllers
             }
         }
 
-        // Helper: Zamiana listy słowników na DataTable
-        private DataTable JsonToDataTable(List<Dictionary<string, object>> list)
-        {
-            DataTable table = new DataTable("Dane");
-            if (list == null || list.Count == 0) return table;
-
-            foreach (var key in list[0].Keys)
-            {
-                table.Columns.Add(key, typeof(string));
-            }
-
-            foreach (var item in list)
-            {
-                var row = table.NewRow();
-                foreach (var key in item.Keys)
-                {
-                    row[key] = item[key]?.ToString() ?? "";
-                }
-                table.Rows.Add(row);
-            }
-
-            return table;
-        }
-
-        // =========================================================
-        // BUDOWANIE TABELI (BEZ PADDINGU)
-        // =========================================================
-        
         private void BuildDynamicTable(Report report, DataTable data)
         {
             report.RegisterData(data, "Dane");
-            DataBand? dataBand = report.FindObject("ListBand") as DataBand;
+            DataBand dataBand = report.FindObject("ListBand") as DataBand;
             if (dataBand == null) return;
 
             dataBand.Objects.Clear();
@@ -149,7 +115,7 @@ namespace FastReportService.Controllers
             table.Name = "DynamicTable";
             table.Parent = dataBand;
             table.Width = 700; 
-            table.Height = 30; // Wysokość wiersza
+            table.Height = 25;
             
             table.ColumnCount = data.Columns.Count;
             table.RowCount = 1; 
@@ -160,18 +126,19 @@ namespace FastReportService.Controllers
             {
                 table.Columns[i].Width = colWidth;
                 TableCell cell = table[0, i];
+                
+                // Bindowanie danych
                 cell.Text = $"[Dane.{data.Columns[i].ColumnName}]";
+                
+                // Stylizacja bezpieczna dla Linuxa
                 cell.Font = new Font("DejaVu Sans", 9, FontStyle.Regular);
-                
-                // Używamy SolidFill
                 cell.TextFill = new SolidFill(Color.Black);
-                
                 cell.Border.Lines = BorderLines.All;
                 cell.Border.Color = Color.Black;
                 cell.VertAlign = VertAlign.Center;
                 
-                // USUWAMY LINIĘ Z PADDINGIEM, ABY UNIKNĄĆ BŁĘDU CS0234
-                // cell.Padding = ... 
+                // Padding usunięty, bo powodował błędy na Dockerze
+                // Domyślny padding jest OK
             }
             
             // Nagłówki kolumn w Panelu 2
@@ -184,6 +151,24 @@ namespace FastReportService.Controllers
             }
             var p2b = report.FindObject("Panel2Body") as FastReport.TextObject;
             if(p2b != null) p2b.Text = "";
+        }
+
+        // --- Helpers ---
+
+        private DataTable JsonToDataTable(List<Dictionary<string, object>> list)
+        {
+            DataTable table = new DataTable("Dane");
+            if (list == null || list.Count == 0) return table;
+
+            foreach (var key in list[0].Keys) table.Columns.Add(key, typeof(string));
+
+            foreach (var item in list)
+            {
+                var row = table.NewRow();
+                foreach (var key in item.Keys) row[key] = item[key]?.ToString() ?? "";
+                table.Rows.Add(row);
+            }
+            return table;
         }
 
         private void FixReportVisuals(Report report)
