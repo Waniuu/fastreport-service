@@ -4,7 +4,6 @@ using FastReport.Utils;
 using Microsoft.AspNetCore.Mvc;
 using System.Data;
 using System.Drawing; // Do klasy Font
-using System.Drawing.Text; // WAŻNE: Do PrivateFontCollection
 using System.IO;
 
 namespace FastReportService.Controllers
@@ -13,40 +12,6 @@ namespace FastReportService.Controllers
     [Route("reports")]
     public class ReportsController : ControllerBase
     {
-        // Statyczna kolekcja czcionek - ładujemy ją tylko RAZ dla całej aplikacji
-        private static readonly PrivateFontCollection _fontCollection = new PrivateFontCollection();
-        private static FontFamily _customFontFamily;
-
-        // Statyczny konstruktor - uruchamia się raz przy starcie
-        static ReportsController()
-        {
-            try 
-            {
-                // Ścieżka do pliku czcionki w kontenerze Docker
-              string fontPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Fonts", "OpenSans-Regular.ttf");
-                
-                if (System.IO.File.Exists(fontPath))
-                {
-                    // Ładujemy czcionkę standardowym mechanizmem .NET (omijamy FastReport Config)
-                    _fontCollection.AddFontFile(fontPath);
-                    
-                    if (_fontCollection.Families.Length > 0)
-                    {
-                        _customFontFamily = _fontCollection.Families[0];
-                        Console.WriteLine($"[INFO] Pomyślnie załadowano czcionkę: {_customFontFamily.Name}");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"[ERROR] Brak pliku czcionki w: {fontPath}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[ERROR] Krytyczny błąd ładowania czcionki: {ex.Message}");
-            }
-        }
-
         // ==========================================
         // 1. RAPORT: Statystyki pytań
         // ==========================================
@@ -144,26 +109,31 @@ namespace FastReportService.Controllers
         {
             var report = new Report();
             report.Load("Reports/raport_testow.frx");
-            
-            // Tutaj następuje "magia" naprawy czcionek
             FixFonts(report); 
-            
             return report;
         }
 
-        // Nowa metoda FixFonts korzystająca z PrivateFontCollection
+        // Uproszczona metoda FixFonts - używamy nazwy czcionki, którą zainstalował Docker
         private void FixFonts(Report report)
         {
-            // Jeśli nie udało się załadować czcionki, nic nie robimy (unikamy crasha)
-            if (_customFontFamily == null) return;
+            // "Open Sans" zadziała, bo zainstalowaliśmy ją w /usr/share/fonts
+            // Jeśli coś pójdzie nie tak, używamy "Liberation Sans" (która też jest zainstalowana przez apt-get)
+            string fontName = "Open Sans"; 
 
             foreach (Base obj in report.AllObjects)
             {
                 if (obj is FastReport.TextObject textObj)
                 {
-                    // Tworzymy nową czcionkę korzystając z fizycznie załadowanej rodziny (Open Sans)
-                    // Zachowujemy oryginalny rozmiar (Size) i styl (Style) z szablonu
-                    textObj.Font = new Font(_customFontFamily, textObj.Font.Size, textObj.Font.Style);
+                    try
+                    {
+                        // Tworzymy czcionkę po nazwie. System ją znajdzie.
+                        textObj.Font = new Font(fontName, textObj.Font.Size, textObj.Font.Style);
+                    }
+                    catch
+                    {
+                        // Fallback na 100% bezpieczną czcionkę Linuxową
+                        textObj.Font = new Font("Liberation Sans", textObj.Font.Size, textObj.Font.Style);
+                    }
                 }
             }
         }
