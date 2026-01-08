@@ -47,7 +47,7 @@ namespace FastReportService.Controllers
         // LOGIKA: JSON -> DATATABLE -> PDF
         // =========================================================
         
-        private IActionResult GeneratePdfFromData(List<Dictionary<string, object>> jsonData, string title, string subtitle)
+   private IActionResult GeneratePdfFromData(List<Dictionary<string, object>> jsonData, string title, string subtitle)
         {
             try 
             {
@@ -65,14 +65,32 @@ namespace FastReportService.Controllers
                 // 3. Konwertujemy JSON na DataTable
                 var table = JsonToDataTable(jsonData);
 
-                // 4. Budujemy dynamiczną tabelę
+                // --- KLUCZOWA ZMIANA: CZYŚCIMY SZABLON ZAWSZE ---
+                // Najpierw usuwamy stare śmieci ("Element listy...") z szablonu
+                DataBand dataBand = report.FindObject("ListBand") as DataBand;
+                if (dataBand != null)
+                {
+                    dataBand.Objects.Clear(); // Usuwa stary tekst z .frx
+                }
+
+                // 4. Budujemy dynamiczną tabelę TYLKO jak są dane
                 if (table.Rows.Count > 0)
                 {
                     BuildDynamicTable(report, table);
                 }
                 else
                 {
-                    SetText(report, "Panel2Body", "BRAK DANYCH SPEŁNIAJĄCYCH KRYTERIA.");
+                    // Jak nie ma danych, wpisujemy ładny komunikat zamiast tabeli
+                    if (dataBand != null)
+                    {
+                        var noDataText = new FastReport.TextObject();
+                        noDataText.Parent = dataBand;
+                        noDataText.Bounds = new RectangleF(0, 0, 700, 30);
+                        noDataText.Text = "BRAK DANYCH W BAZIE DLA WYBRANYCH KRYTERIÓW";
+                        noDataText.Font = new Font("DejaVu Sans", 12, FontStyle.Bold);
+                        noDataText.TextFill = new SolidFill(Color.Red);
+                        noDataText.HorzAlign = HorzAlign.Center;
+                    }
                 }
 
                 report.Prepare();
