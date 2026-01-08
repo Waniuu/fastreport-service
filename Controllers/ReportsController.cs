@@ -4,7 +4,7 @@ using FastReport.Utils;
 using FastReport.Table;
 using Microsoft.AspNetCore.Mvc;
 using System.Data;
-using System.Drawing;
+using System.Drawing; // Do klasy Font i Color
 using System.IO;
 using System.Text.Json; // Do obsługi JSON
 using System.Collections.Generic;
@@ -28,19 +28,19 @@ namespace FastReportService.Controllers
         [HttpPost("users")]
         public IActionResult GenerateUsers([FromBody] List<Dictionary<string, object>> data)
         {
-            return GeneratePdfFromData(data, "LISTA UŻYTKOWNIKÓW", "Aktualny stan bazy danych");
+            return GeneratePdfFromData(data, "LISTA UZYTKOWNIKOW", "Aktualny stan bazy danych");
         }
 
         [HttpPost("tests-grouped")]
         public IActionResult GenerateTests([FromBody] List<Dictionary<string, object>> data)
         {
-            return GeneratePdfFromData(data, "HARMONOGRAM TESTÓW", "Lista utworzonych egzaminów");
+            return GeneratePdfFromData(data, "HARMONOGRAM TESTOW", "Lista utworzonych egzaminow");
         }
 
         [HttpPost("test-form")]
         public IActionResult GenerateCard([FromBody] List<Dictionary<string, object>> data)
         {
-            return GeneratePdfFromData(data, "KARTA WYNIKÓW", "Szczegółowe wyniki studenta");
+            return GeneratePdfFromData(data, "KARTA WYNIKOW", "Szczegolowe wyniki studenta");
         }
 
         // =========================================================
@@ -72,7 +72,7 @@ namespace FastReportService.Controllers
                 }
                 else
                 {
-                    SetText(report, "Panel2Body", "BRAK DANYCH SPEŁNIAJĄCYCH KRYTERIA.");
+                    SetText(report, "Panel2Body", "BRAK DANYCH SPELNIAJACYCH KRYTERIA.");
                 }
 
                 report.Prepare();
@@ -86,7 +86,6 @@ namespace FastReportService.Controllers
             }
             catch (Exception ex)
             {
-                // W razie błędu zwracamy pusty PDF z informacją, żeby nie crashować frontendu
                 return StatusCode(500, new { error = ex.Message });
             }
         }
@@ -97,19 +96,16 @@ namespace FastReportService.Controllers
             DataTable table = new DataTable("Dane");
             if (list == null || list.Count == 0) return table;
 
-            // Tworzenie kolumn na podstawie pierwszego wiersza
             foreach (var key in list[0].Keys)
             {
                 table.Columns.Add(key, typeof(string));
             }
 
-            // Wypełnianie danymi
             foreach (var item in list)
             {
                 var row = table.NewRow();
                 foreach (var key in item.Keys)
                 {
-                    // Konwersja wszystkiego na string dla bezpieczeństwa
                     row[key] = item[key]?.ToString() ?? "";
                 }
                 table.Rows.Add(row);
@@ -119,13 +115,13 @@ namespace FastReportService.Controllers
         }
 
         // =========================================================
-        // BUDOWANIE TABELI (TO SAMO CO WCZEŚNIEJ)
+        // BUDOWANIE TABELI (Z POPRAWKĄ NA PADDING)
         // =========================================================
         
         private void BuildDynamicTable(Report report, DataTable data)
         {
             report.RegisterData(data, "Dane");
-            DataBand dataBand = report.FindObject("ListBand") as DataBand;
+            DataBand? dataBand = report.FindObject("ListBand") as DataBand;
             if (dataBand == null) return;
 
             dataBand.Objects.Clear();
@@ -148,11 +144,16 @@ namespace FastReportService.Controllers
                 TableCell cell = table[0, i];
                 cell.Text = $"[Dane.{data.Columns[i].ColumnName}]";
                 cell.Font = new Font("DejaVu Sans", 9, FontStyle.Regular);
+                
+                // Używamy SolidFill
                 cell.TextFill = new SolidFill(Color.Black);
+                
                 cell.Border.Lines = BorderLines.All;
                 cell.Border.Color = Color.Black;
                 cell.VertAlign = VertAlign.Center;
-                cell.Padding = new Padding(2, 2, 2, 2);
+                
+                // --- TU BYŁ BŁĄD. TERAZ JEST POPRAWKA: ---
+                cell.Padding = new FastReport.Padding(2, 2, 2, 2);
             }
             
             // Nagłówki kolumn w Panelu 2
