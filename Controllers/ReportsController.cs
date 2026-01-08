@@ -3,7 +3,7 @@ using FastReport.Export.PdfSimple;
 using FastReport.Utils;
 using Microsoft.AspNetCore.Mvc;
 using System.Data;
-using System.Drawing; // Do klasy Font
+using System.Drawing; // Do klasy Font i Color
 using System.IO;
 
 namespace FastReportService.Controllers
@@ -20,18 +20,17 @@ namespace FastReportService.Controllers
         {
             var report = LoadAndFixReport();
 
-            SetText(report, "Title", "Raport: Statystyki Pytań");
-            SetText(report, "Panel1Header", "Wybrane kryteria");
-            SetText(report, "Panel1Body", $"Bank ID: {id_banku ?? 0}, Kategoria ID: {id_kategorii ?? 0}");
-            SetText(report, "Panel2Header", "Podsumowanie");
-            SetText(report, "Panel2Body", "Poniżej znajduje się zestawienie trudności pytań.");
+            SetText(report, "Title", "RAPORT STATYSTYK"); // Krótki tytuł
+            SetText(report, "Panel1Header", "Kryteria");
+            SetText(report, "Panel1Body", $"Bank: {id_banku}, Kat: {id_kategorii}");
+            SetText(report, "Panel2Header", "Info");
+            SetText(report, "Panel2Body", "Raport wygenerowany automatycznie.");
 
             var table = new DataTable("Dane");
             table.Columns.Add("Nazwa", typeof(string));
             table.Columns.Add("Wartosc", typeof(string));
             table.Rows.Add("Latwe", "15");
             table.Rows.Add("Trudne", "8");
-            table.Rows.Add("Srednia", "4.5");
 
             return ExportReport(report, table, "statystyki.pdf");
         }
@@ -43,96 +42,78 @@ namespace FastReportService.Controllers
         public IActionResult GetUsers([FromQuery] string? rola, [FromQuery] string? email)
         {
             var report = LoadAndFixReport();
-
-            SetText(report, "Title", "Lista Użytkowników");
-            SetText(report, "Panel1Header", "Filtrowanie");
-            SetText(report, "Panel1Body", $"Rola: {rola ?? "Wszystkie"}, Email: {email ?? "-"}");
-            SetText(report, "Panel2Header", "Informacja");
-            SetText(report, "Panel2Body", "Wygenerowano listę użytkowników.");
-
+            SetText(report, "Title", "LISTA UZYTKOWNIKOW");
+            SetText(report, "Panel1Header", "Filtry");
+            SetText(report, "Panel1Body", $"Rola: {rola}");
+            
             var table = new DataTable("Dane");
             table.Columns.Add("Nazwa", typeof(string));
             table.Columns.Add("Wartosc", typeof(string));
             table.Rows.Add("Jan Kowalski", "Student");
-            table.Rows.Add("Anna Nowak", "Nauczyciel");
-
+            
             return ExportReport(report, table, "uzytkownicy.pdf");
         }
-
-        // ==========================================
-        // 3. RAPORT: Testy pogrupowane
-        // ==========================================
+        
+        // ... (Reszta endpointów analogicznie - wywołuj LoadAndFixReport) ...
         [HttpGet("tests-grouped")]
         public IActionResult GetTestsGrouped([FromQuery] string? start, [FromQuery] string? end)
         {
             var report = LoadAndFixReport();
-            SetText(report, "Title", "Raport Testów");
-            SetText(report, "Panel1Header", "Zakres dat");
-            SetText(report, "Panel1Body", $"Od: {start} Do: {end}");
-            SetText(report, "Panel2Header", "Status");
-            SetText(report, "Panel2Body", "Wydajność systemu.");
-
+            SetText(report, "Title", "RAPORT TESTOW");
             var table = new DataTable("Dane");
             table.Columns.Add("Nazwa", typeof(string));
             table.Columns.Add("Wartosc", typeof(string));
-            table.Rows.Add("Egzamin SQL", "2025-05-10");
-
+            table.Rows.Add("Test SQL", "2025");
             return ExportReport(report, table, "testy.pdf");
         }
 
-        // ==========================================
-        // 4. RAPORT: Karta egzaminacyjna
-        // ==========================================
         [HttpGet("test-form")]
         public IActionResult GetTestForm([FromQuery] int? id_testu, [FromQuery] int? id_uzytkownika)
         {
             var report = LoadAndFixReport();
-            SetText(report, "Title", "KARTA EGZAMINACYJNA");
-            SetText(report, "Panel1Header", "Dane Studenta");
-            SetText(report, "Panel1Body", $"Student ID: {id_uzytkownika}");
-            SetText(report, "Panel2Header", "Wynik");
-            SetText(report, "Panel2Body", "Zaliczono.");
-
+            SetText(report, "Title", "KARTA EGZAMINU");
             var table = new DataTable("Dane");
             table.Columns.Add("Nazwa", typeof(string));
             table.Columns.Add("Wartosc", typeof(string));
             table.Rows.Add("Pytanie 1", "OK");
-
             return ExportReport(report, table, "karta.pdf");
         }
 
+
         // ==========================================
-        // METODY POMOCNICZE
+        // METODY POMOCNICZE (TUTAJ JEST NAPRAWA)
         // ==========================================
 
         private Report LoadAndFixReport()
         {
             var report = new Report();
             report.Load("Reports/raport_testow.frx");
-            FixFonts(report); 
+            
+            // 🔥 NAPRAWA GRAFIKI 🔥
+            FixReportVisuals(report); 
+            
             return report;
         }
 
-        // Uproszczona metoda FixFonts - używamy nazwy czcionki, którą zainstalował Docker
-// Metoda naprawcza - wymusza użycie czcionki, którą właśnie zainstalowaliśmy w Dockerze
-        private void FixFonts(Report report)
+        private void FixReportVisuals(Report report)
         {
-            // "DejaVu Sans" to nazwa systemowa czcionki z pakietu fonts-dejavu-core
-            string safeFontName = "DejaVu Sans"; 
+            // Używamy czcionki systemowej dostępnej w Dockerze (zainstalowanej w Dockerfile)
+            string fontName = "DejaVu Sans"; 
 
             foreach (Base obj in report.AllObjects)
             {
+                // 1. NAPRAWA TEKSTU: Zmień czcionkę na DejaVu ORAZ kolor na CZARNY
                 if (obj is FastReport.TextObject textObj)
                 {
-                    try
-                    {
-                        // Wymuszamy DejaVu Sans, zachowując rozmiar i styl (pogrubienie itp.)
-                        textObj.Font = new Font(safeFontName, textObj.Font.Size, textObj.Font.Style);
-                    }
-                    catch
-                    {
-                        // Jeśli nawet to zawiedzie (niemożliwe), zostawiamy jak jest
-                    }
+                    textObj.Font = new Font(fontName, textObj.Font.Size, textObj.Font.Style);
+                    textObj.TextFill = new SolidBrush(Color.Black); // <--- TO ROZWIĄZUJE PROBLEM "BIAŁY NA BIAŁYM"
+                }
+                
+                // 2. NAPRAWA TŁA: Jeśli tło ma przezroczystość, usuń ją (Linux tego nie lubi)
+                if (obj is FastReport.ShapeObject shapeObj)
+                {
+                    // Zmieniamy na jasnoszare, pełne tło (bez Blend)
+                    shapeObj.Fill = new SolidFill(Color.LightGray);
                 }
             }
         }
@@ -146,12 +127,17 @@ namespace FastReportService.Controllers
         private IActionResult ExportReport(Report report, DataTable data, string fileName)
         {
             report.RegisterData(data, "Dane");
-            
             var dataBand = report.FindObject("ListBand") as FastReport.DataBand;
             if (dataBand != null) dataBand.DataSource = report.GetDataSource("Dane");
             
+            // Ważne: ustawiamy kolor czarny też dla elementów listy
             var listItem = report.FindObject("ListItem") as FastReport.TextObject;
-            if(listItem != null) listItem.Text = "[Dane.Nazwa]: [Dane.Wartosc]";
+            if(listItem != null) 
+            {
+                listItem.Text = "[Dane.Nazwa]: [Dane.Wartosc]";
+                listItem.TextFill = new SolidBrush(Color.Black);
+                listItem.Font = new Font("DejaVu Sans", 10, FontStyle.Regular);
+            }
 
             report.Prepare();
 
