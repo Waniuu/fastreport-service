@@ -3,7 +3,8 @@ using FastReport.Export.PdfSimple;
 using FastReport.Utils;
 using Microsoft.AspNetCore.Mvc;
 using System.Data;
-using System.Drawing; // Wymagane dla klasy Font
+using System.Drawing; // Do klasy Font
+using System.Drawing.Text; // WAŻNE: Do PrivateFontCollection
 using System.IO;
 
 namespace FastReportService.Controllers
@@ -12,28 +13,37 @@ namespace FastReportService.Controllers
     [Route("reports")]
     public class ReportsController : ControllerBase
     {
-        // Statyczny konstruktor - ładuje czcionkę RAZ przy starcie aplikacji
+        // Statyczna kolekcja czcionek - ładujemy ją tylko RAZ dla całej aplikacji
+        private static readonly PrivateFontCollection _fontCollection = new PrivateFontCollection();
+        private static FontFamily _customFontFamily;
+
+        // Statyczny konstruktor - uruchamia się raz przy starcie
         static ReportsController()
         {
             try 
             {
-                // Ścieżka do pliku czcionki
+                // Ścieżka do pliku czcionki w kontenerze Docker
                 string fontPath = Path.Combine(Directory.GetCurrentDirectory(), "Fonts", "OpenSans-Regular.ttf");
                 
                 if (System.IO.File.Exists(fontPath))
                 {
-                    // Rejestrujemy czcionkę w FastReport
-                    Config.FontSettings.AddFont(fontPath);
-                    Console.WriteLine($"[INFO] Załadowano czcionkę: {fontPath}");
+                    // Ładujemy czcionkę standardowym mechanizmem .NET (omijamy FastReport Config)
+                    _fontCollection.AddFontFile(fontPath);
+                    
+                    if (_fontCollection.Families.Length > 0)
+                    {
+                        _customFontFamily = _fontCollection.Families[0];
+                        Console.WriteLine($"[INFO] Pomyślnie załadowano czcionkę: {_customFontFamily.Name}");
+                    }
                 }
                 else
                 {
-                    Console.WriteLine($"[ERROR] Nie znaleziono pliku czcionki: {fontPath}");
+                    Console.WriteLine($"[ERROR] Brak pliku czcionki w: {fontPath}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ERROR] Błąd ładowania czcionki: {ex.Message}");
+                Console.WriteLine($"[ERROR] Krytyczny błąd ładowania czcionki: {ex.Message}");
             }
         }
 
@@ -54,9 +64,9 @@ namespace FastReportService.Controllers
             var table = new DataTable("Dane");
             table.Columns.Add("Nazwa", typeof(string));
             table.Columns.Add("Wartosc", typeof(string));
-            table.Rows.Add("Łatwe", "15"); // Używam polskich znaków testowo
+            table.Rows.Add("Latwe", "15");
             table.Rows.Add("Trudne", "8");
-            table.Rows.Add("Średnia", "4.5");
+            table.Rows.Add("Srednia", "4.5");
 
             return ExportReport(report, table, "statystyki.pdf");
         }
@@ -134,22 +144,26 @@ namespace FastReportService.Controllers
         {
             var report = new Report();
             report.Load("Reports/raport_testow.frx");
-            FixFonts(report); // Podmieniamy fonty na załadowany plik
+            
+            // Tutaj następuje "magia" naprawy czcionek
+            FixFonts(report); 
+            
             return report;
         }
 
+        // Nowa metoda FixFonts korzystająca z PrivateFontCollection
         private void FixFonts(Report report)
         {
-            // Nazwa czcionki musi się zgadzać z nazwą pliku TTF (Family Name)
-            // Dla OpenSans-Regular.ttf to zazwyczaj "Open Sans"
-            string safeFontName = "Open Sans"; 
+            // Jeśli nie udało się załadować czcionki, nic nie robimy (unikamy crasha)
+            if (_customFontFamily == null) return;
 
             foreach (Base obj in report.AllObjects)
             {
                 if (obj is FastReport.TextObject textObj)
                 {
-                    // Wymuszamy użycie naszej czcionki
-                    textObj.Font = new Font(safeFontName, textObj.Font.Size, textObj.Font.Style);
+                    // Tworzymy nową czcionkę korzystając z fizycznie załadowanej rodziny (Open Sans)
+                    // Zachowujemy oryginalny rozmiar (Size) i styl (Style) z szablonu
+                    textObj.Font = new Font(_customFontFamily, textObj.Font.Size, textObj.Font.Style);
                 }
             }
         }
@@ -164,11 +178,9 @@ namespace FastReportService.Controllers
         {
             report.RegisterData(data, "Dane");
             
-            // Podpięcie danych do DataBand
             var dataBand = report.FindObject("ListBand") as FastReport.DataBand;
             if (dataBand != null) dataBand.DataSource = report.GetDataSource("Dane");
             
-            // Podpięcie danych do pól tekstowych w liście
             var listItem = report.FindObject("ListItem") as FastReport.TextObject;
             if(listItem != null) listItem.Text = "[Dane.Nazwa]: [Dane.Wartosc]";
 
