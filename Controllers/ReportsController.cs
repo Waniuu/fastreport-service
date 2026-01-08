@@ -114,11 +114,11 @@ namespace FastReportService.Controllers
         }
 
         // Uproszczona metoda FixFonts - używamy nazwy czcionki, którą zainstalował Docker
+// Metoda naprawcza - wymusza użycie czcionki, którą właśnie zainstalowaliśmy w Dockerze
         private void FixFonts(Report report)
         {
-            // "Open Sans" zadziała, bo zainstalowaliśmy ją w /usr/share/fonts
-            // Jeśli coś pójdzie nie tak, używamy "Liberation Sans" (która też jest zainstalowana przez apt-get)
-            string fontName = "Open Sans"; 
+            // "DejaVu Sans" to nazwa systemowa czcionki z pakietu fonts-dejavu-core
+            string safeFontName = "DejaVu Sans"; 
 
             foreach (Base obj in report.AllObjects)
             {
@@ -126,13 +126,12 @@ namespace FastReportService.Controllers
                 {
                     try
                     {
-                        // Tworzymy czcionkę po nazwie. System ją znajdzie.
-                        textObj.Font = new Font(fontName, textObj.Font.Size, textObj.Font.Style);
+                        // Wymuszamy DejaVu Sans, zachowując rozmiar i styl (pogrubienie itp.)
+                        textObj.Font = new Font(safeFontName, textObj.Font.Size, textObj.Font.Style);
                     }
                     catch
                     {
-                        // Fallback na 100% bezpieczną czcionkę Linuxową
-                        textObj.Font = new Font("Liberation Sans", textObj.Font.Size, textObj.Font.Style);
+                        // Jeśli nawet to zawiedzie (niemożliwe), zostawiamy jak jest
                     }
                 }
             }
