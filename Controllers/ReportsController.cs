@@ -1,7 +1,7 @@
 using FastReport;
 using FastReport.Export.PdfSimple;
 using FastReport.Utils;
-using FastReport.Table; // Ważne dla tabel
+using FastReport.Table;
 using Microsoft.AspNetCore.Mvc;
 using System.Data;
 using System.Drawing; 
@@ -17,7 +17,7 @@ namespace FastReportService.Controllers
     public class ReportsController : ControllerBase
     {
         // =========================================================
-        // ENDPOINTY (Wszystkie używają nowej funkcji GenerateBeautifulReport)
+        // ENDPOINTY
         // =========================================================
         
         [HttpPost("students-list")]
@@ -51,7 +51,7 @@ namespace FastReportService.Controllers
         {
             try
             {
-                // 1. Konwersja JSON -> DataTable (dla łatwiejszej obsługi w FastReport)
+                // 1. Konwersja JSON -> DataTable
                 DataTable table = JsonToDataTable(jsonData);
                 table.TableName = "Dane";
 
@@ -63,7 +63,6 @@ namespace FastReportService.Controllers
                 // 3. STRONA
                 ReportPage page = new ReportPage();
                 page.Name = "Page1";
-                // Ustaw marginesy
                 page.LeftMargin = 10; 
                 page.RightMargin = 10;
                 page.TopMargin = 10;
@@ -82,11 +81,15 @@ namespace FastReportService.Controllers
                 ShapeObject headerBg = new ShapeObject();
                 headerBg.Parent = titleBand;
                 headerBg.Bounds = new RectangleF(0, 0, page.Width, Units.Centimeters * 2.0f);
-                headerBg.Fill = new SolidFill(Color.FromArgb(255, 51, 102)); // Twój #ff3366
-                headerBg.ShapeKind = ShapeKind.Rectangle;
+                headerBg.Fill = new SolidFill(Color.FromArgb(255, 51, 102));
+                
+                // --- POPRAWKA TUTAJ (Shape zamiast ShapeKind) ---
+                headerBg.Shape = ShapeKind.Rectangle; 
+                // ------------------------------------------------
+                
                 headerBg.Border.Lines = BorderLines.None;
 
-                // Główny tytuł (System...)
+                // Główny tytuł
                 TextObject sysTitle = new TextObject();
                 sysTitle.Parent = titleBand;
                 sysTitle.Bounds = new RectangleF(Units.Centimeters * 0.5f, Units.Centimeters * 0.2f, page.Width, Units.Centimeters * 1.0f);
@@ -102,7 +105,7 @@ namespace FastReportService.Controllers
                 dateTxt.Font = new Font("Arial", 10, FontStyle.Regular);
                 dateTxt.TextColor = Color.White;
 
-                // Tytuł konkretnego raportu (np. LISTA STUDENTÓW)
+                // Tytuł konkretnego raportu
                 TextObject subTitle = new TextObject();
                 subTitle.Parent = titleBand;
                 subTitle.Bounds = new RectangleF(0, Units.Centimeters * 2.2f, page.Width, Units.Centimeters * 0.8f);
@@ -111,13 +114,12 @@ namespace FastReportService.Controllers
                 subTitle.TextColor = Color.Black;
 
                 // --------------------------------------------------------
-                // B. NAGŁÓWEK TABELI (Ciemny pasek z nazwami kolumn)
+                // B. NAGŁÓWEK TABELI
                 // --------------------------------------------------------
                 PageHeaderBand headerBand = new PageHeaderBand();
                 headerBand.Height = Units.Centimeters * 0.8f;
                 page.PageHeader = headerBand;
 
-                // Obliczamy szerokość kolumn (równy podział)
                 float colWidth = page.Width / (table.Columns.Count > 0 ? table.Columns.Count : 1);
                 float currentX = 0;
 
@@ -128,7 +130,7 @@ namespace FastReportService.Controllers
                     cell.Bounds = new RectangleF(currentX, 0, colWidth, headerBand.Height);
                     cell.Text = col.ColumnName;
                     cell.Font = new Font("Arial", 10, FontStyle.Bold);
-                    cell.Fill = new SolidFill(Color.FromArgb(40, 40, 40)); // Ciemnoszary
+                    cell.Fill = new SolidFill(Color.FromArgb(40, 40, 40));
                     cell.TextColor = Color.White;
                     cell.HorzAlign = HorzAlign.Center;
                     cell.VertAlign = VertAlign.Center;
@@ -139,7 +141,7 @@ namespace FastReportService.Controllers
                 }
 
                 // --------------------------------------------------------
-                // C. DANE (Tabela w kratkę)
+                // C. DANE
                 // --------------------------------------------------------
                 DataBand dataBand = new DataBand();
                 dataBand.Height = Units.Centimeters * 0.8f;
@@ -152,16 +154,14 @@ namespace FastReportService.Controllers
                     TextObject cell = new TextObject();
                     cell.Parent = dataBand;
                     cell.Bounds = new RectangleF(currentX, 0, colWidth, dataBand.Height);
-                    // Bindowanie danych [Dane.NazwaKolumny]
                     cell.Text = "[Dane." + col.ColumnName + "]"; 
                     cell.Font = new Font("Arial", 10, FontStyle.Regular);
                     cell.VertAlign = VertAlign.Center;
                     
-                    // KRATKA EXCELOWA
+                    // Kratka Excelowa
                     cell.Border.Lines = BorderLines.All;
                     cell.Border.Color = Color.LightGray;
 
-                    // Opcjonalnie: wyrównanie liczb do prawej
                     if (IsNumeric(col.DataType))
                         cell.HorzAlign = HorzAlign.Right;
                     
@@ -184,25 +184,21 @@ namespace FastReportService.Controllers
             }
         }
 
-        // --- Helper: Konwersja JSON List do DataTable ---
         private DataTable JsonToDataTable(List<Dictionary<string, object>> list)
         {
             DataTable dt = new DataTable();
             if (list == null || list.Count == 0) return dt;
 
-            // Tworzenie kolumn na podstawie pierwszego wiersza
             foreach (var key in list[0].Keys)
             {
                 dt.Columns.Add(key);
             }
 
-            // Dodawanie wierszy
             foreach (var item in list)
             {
                 DataRow row = dt.NewRow();
                 foreach (var key in item.Keys)
                 {
-                    // Obsługa nulli i typów
                     var val = item[key];
                     row[key] = val?.ToString() ?? "";
                 }
