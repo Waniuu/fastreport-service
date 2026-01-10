@@ -1,7 +1,7 @@
 using FastReport;
 using FastReport.Export.PdfSimple;
 using FastReport.Utils;
-using FastReport.Table;
+using FastReport.Table; // Ważne do tabel
 using Microsoft.AspNetCore.Mvc;
 using System.Data;
 using System.Drawing; 
@@ -17,91 +17,94 @@ namespace FastReportService.Controllers
     public class ReportsController : ControllerBase
     {
         // =========================================================
-        // ENDPOINTY
+        // ENDPOINTY (Wszystkie kierują do generatora tabeli)
         // =========================================================
         
         [HttpPost("students-list")]
         public IActionResult GenerateUsers([FromBody] List<Dictionary<string, object>> data)
         {
-            return GenerateBeautifulReport(data, "LISTA STUDENTÓW");
+            return GenerateExcelStyleReport(data, "LISTA STUDENTÓW");
         }
 
         [HttpPost("exam-results")]
         public IActionResult GenerateExam([FromBody] List<Dictionary<string, object>> data)
         {
-            return GenerateBeautifulReport(data, "WYNIKI EGZAMINU");
+            return GenerateExcelStyleReport(data, "WYNIKI EGZAMINU");
         }
 
         [HttpPost("questions-bank")]
         public IActionResult GenerateQuestions([FromBody] List<Dictionary<string, object>> data)
         {
-            return GenerateBeautifulReport(data, "BANK PYTAŃ");
+            return GenerateExcelStyleReport(data, "BANK PYTAŃ");
         }
 
         [HttpPost("tests-stats")]
         public IActionResult GenerateStats([FromBody] List<Dictionary<string, object>> data)
         {
-            return GenerateBeautifulReport(data, "STATYSTYKA TESTÓW");
+            return GenerateExcelStyleReport(data, "STATYSTYKA TESTÓW");
         }
 
         // =========================================================
-        // LOGIKA GENEROWANIA - STYL "EXCEL" + RÓŻOWY NAGŁÓWEK
+        // GENERATOR TABELI W STYLU EXCEL (BEZ PLIKÓW .FRX)
         // =========================================================
-        private IActionResult GenerateBeautifulReport(List<Dictionary<string, object>> jsonData, string reportTitle)
+        private IActionResult GenerateExcelStyleReport(List<Dictionary<string, object>> jsonData, string reportTitle)
         {
             try
             {
+                // 1. Przygotuj dane
                 DataTable table = JsonToDataTable(jsonData);
                 table.TableName = "Dane";
 
+                // 2. Utwórz raport
                 Report report = new Report();
-                report.RegisterData(table, "Dane");
-                report.GetDataSource("Dane").Enabled = true;
-
+                
+                // 3. Utwórz stronę
                 ReportPage page = new ReportPage();
                 page.Name = "Page1";
-                // Marginesy
-                page.LeftMargin = 10; 
-                page.RightMargin = 10;
                 page.TopMargin = 10;
+                page.BottomMargin = 10;
+                page.LeftMargin = 10;
+                page.RightMargin = 10;
                 report.Pages.Add(page);
 
-                // --- 1. NAGŁÓWEK STRONY (Różowy pasek) ---
+                // --- A. GÓRNY PASEK (Różowy Nagłówek) ---
                 ReportTitleBand titleBand = new ReportTitleBand();
                 titleBand.Height = Units.Centimeters * 2.5f;
                 page.ReportTitle = titleBand;
 
-                // Tło nagłówka (jako duży tekst bez treści, ale z tłem)
+                // Tło nagłówka (Różowy prostokąt)
                 TextObject headerBg = new TextObject();
                 headerBg.Parent = titleBand;
                 headerBg.Bounds = new RectangleF(0, 0, page.Width, Units.Centimeters * 2.0f);
-                headerBg.Fill = new SolidFill(Color.FromArgb(255, 51, 102)); // Różowy #ff3366
+                headerBg.Fill = new SolidFill(Color.FromArgb(255, 51, 102)); // Twój kolor #ff3366
                 headerBg.Text = ""; 
 
-                // Tytuł Główny
-                TextObject mainTitle = new TextObject();
-                mainTitle.Parent = titleBand;
-                mainTitle.Bounds = new RectangleF(10, 10, page.Width - 20, 30);
-                mainTitle.Text = "System Generowania Testów";
-                mainTitle.Font = new Font("Arial", 18, FontStyle.Bold);
-                mainTitle.TextColor = Color.White;
-                mainTitle.Fill = new SolidFill(Color.Transparent);
+                // Tytuł Systemu
+                TextObject sysTitle = new TextObject();
+                sysTitle.Parent = titleBand;
+                sysTitle.Bounds = new RectangleF(10, 10, page.Width - 20, 30);
+                sysTitle.Text = "SYSTEM GENEROWANIA TESTÓW";
+                sysTitle.Font = new Font("Arial", 16, FontStyle.Bold); // Arial jest bezpieczny
+                sysTitle.TextColor = Color.White;
+                sysTitle.Fill = new SolidFill(Color.Transparent);
 
-                // Data i nazwa raportu
+                // Nazwa Raportu i Data
                 TextObject subTitle = new TextObject();
                 subTitle.Parent = titleBand;
                 subTitle.Bounds = new RectangleF(10, 45, page.Width - 20, 20);
-                subTitle.Text = $"{reportTitle} | Data: {System.DateTime.Now:yyyy-MM-dd HH:mm}";
-                subTitle.Font = new Font("Arial", 11, FontStyle.Regular);
+                subTitle.Text = $"{reportTitle}  |  {System.DateTime.Now:yyyy-MM-dd HH:mm}";
+                subTitle.Font = new Font("Arial", 10, FontStyle.Regular);
                 subTitle.TextColor = Color.White;
                 subTitle.Fill = new SolidFill(Color.Transparent);
 
-                // --- 2. NAGŁÓWKI TABELI (Ciemnoszare) ---
+                // --- B. NAGŁÓWKI TABELI (Ciemnoszare) ---
                 PageHeaderBand headerBand = new PageHeaderBand();
                 headerBand.Height = Units.Centimeters * 0.8f;
                 page.PageHeader = headerBand;
 
-                float colWidth = page.Width / (table.Columns.Count > 0 ? table.Columns.Count : 1);
+                // Obliczanie szerokości kolumn
+                int colCount = table.Columns.Count > 0 ? table.Columns.Count : 1;
+                float colWidth = page.Width / colCount;
                 float currentX = 0;
 
                 foreach (DataColumn col in table.Columns)
@@ -110,47 +113,90 @@ namespace FastReportService.Controllers
                     cell.Parent = headerBand;
                     cell.Bounds = new RectangleF(currentX, 0, colWidth, headerBand.Height);
                     cell.Text = col.ColumnName.ToUpper();
-                    cell.Font = new Font("Arial", 10, FontStyle.Bold);
+                    cell.Font = new Font("Arial", 9, FontStyle.Bold);
                     cell.Fill = new SolidFill(Color.FromArgb(50, 50, 50)); // Ciemne tło
                     cell.TextColor = Color.White;
                     cell.HorzAlign = HorzAlign.Center;
                     cell.VertAlign = VertAlign.Center;
-                    cell.Border.Lines = BorderLines.All; // Ramka
+                    
+                    // RAMKA (Biała dla nagłówka)
+                    cell.Border.Lines = BorderLines.All;
                     cell.Border.Color = Color.White;
                     
                     currentX += colWidth;
                 }
 
-                // --- 3. DANE (Białe z kratką) ---
+                // --- C. DANE (Prawdziwa Tabela) ---
                 DataBand dataBand = new DataBand();
-                dataBand.Height = Units.Centimeters * 0.8f;
-                dataBand.DataSource = report.GetDataSource("Dane");
+                dataBand.Height = Units.Centimeters * 0.7f;
                 page.Bands.Add(dataBand);
+                
+                // Ręczne wiązanie danych (działa lepiej niż RegisterData w trybie Code-First)
+                dataBand.BeforePrint += (sender, e) => {
+                    // FastReport sam iteruje po wierszach, jeśli podepniemy źródło, 
+                    // ale tutaj robimy to manualnie w pętli przy tworzeniu obiektów
+                };
 
-                currentX = 0;
-                foreach (DataColumn col in table.Columns)
+                // Ponieważ FastReport w trybie czystego kodu wymaga sprytnego podejścia do DataBand:
+                // Zamiast bawić się w DataSource, użyjemy TableObject - to wygląda najlepiej (jak Excel)
+                
+                // UWAGA: Resetujemy stronę i używamy obiektu TABELA
+                page.Bands.Clear(); // Usuwamy bandy, robimy TableObject
+                page.ReportTitle = titleBand; // Przywracamy nagłówek
+
+                DataBand masterData = new DataBand();
+                masterData.Height = Units.Centimeters * 1.0f; // Wysokość dynamiczna
+                page.Bands.Add(masterData);
+
+                // Obiekt Tabela
+                TableObject tableObj = new TableObject();
+                tableObj.Parent = masterData;
+                tableObj.Bounds = new RectangleF(0, 0, page.Width, Units.Centimeters * 2.0f);
+                tableObj.RowCount = table.Rows.Count + 1; // Nagłówek + Dane
+                tableObj.ColumnCount = colCount;
+                
+                // 1. Wiersz Nagłówka w Tabeli
+                for (int c = 0; c < colCount; c++)
                 {
-                    TextObject cell = new TextObject();
-                    cell.Parent = dataBand;
-                    cell.Bounds = new RectangleF(currentX, 0, colWidth, dataBand.Height);
-                    cell.Text = "[Dane." + col.ColumnName + "]";
-                    cell.Font = new Font("Arial", 10, FontStyle.Regular);
-                    cell.VertAlign = VertAlign.Center;
-                    cell.HorzAlign = HorzAlign.Center;
-                    
-                    // TO TWORZY EFEKT EXCELA (Kratka)
-                    cell.Border.Lines = BorderLines.All;
-                    cell.Border.Color = Color.Black; 
-                    
-                    currentX += colWidth;
+                    tableObj[c, 0].Text = table.Columns[c].ColumnName;
+                    tableObj[c, 0].Font = new Font("Arial", 9, FontStyle.Bold);
+                    tableObj[c, 0].Fill = new SolidFill(Color.FromArgb(220, 220, 220)); // Jasnoszary
+                    tableObj[c, 0].Border.Lines = BorderLines.All;
+                    tableObj[c, 0].HorzAlign = HorzAlign.Center;
+                    tableObj[c, 0].VertAlign = VertAlign.Center;
                 }
 
-                // --- 4. Generowanie ---
+                // 2. Wiersze Danych
+                for (int r = 0; r < table.Rows.Count; r++)
+                {
+                    for (int c = 0; c < colCount; c++)
+                    {
+                        var row = table.Rows[r];
+                        // +1 bo wiersz 0 to nagłówek
+                        tableObj[c, r + 1].Text = row[c].ToString();
+                        tableObj[c, r + 1].Font = new Font("Arial", 9, FontStyle.Regular);
+                        tableObj[c, r + 1].Border.Lines = BorderLines.All; // KRATKA
+                        tableObj[c, r + 1].Border.Color = Color.Black;
+                        tableObj[c, r + 1].Padding = new Padding(2, 2, 2, 2);
+                        
+                        // Zmienny kolor wierszy (Zebra)
+                        if (r % 2 == 1) 
+                            tableObj[c, r + 1].Fill = new SolidFill(Color.FromArgb(245, 245, 245));
+                    }
+                }
+                
+                // Autosize
+                for (int c = 0; c < colCount; c++)
+                {
+                    // Ustaw szerokość równomiernie
+                    tableObj.Columns[c].Width = page.Width / colCount;
+                }
+
+                // 4. Generowanie PDF
                 report.Prepare();
                 
                 using (MemoryStream ms = new MemoryStream())
                 {
-                    // Używamy PDFSimpleExport - jest szybszy i mniej awaryjny na Linuxie
                     PDFSimpleExport export = new PDFSimpleExport();
                     export.Export(report, ms);
                     return File(ms.ToArray(), "application/pdf", "raport.pdf");
@@ -158,11 +204,11 @@ namespace FastReportService.Controllers
             }
             catch (System.Exception ex)
             {
-                // Zwracamy błąd JSON, żeby frontend wiedział co się stało
                 return StatusCode(500, new { error = "Błąd C#", details = ex.Message });
             }
         }
 
+        // Helper do konwersji JSON -> DataTable
         private DataTable JsonToDataTable(List<Dictionary<string, object>> list)
         {
             DataTable dt = new DataTable();
