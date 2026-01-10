@@ -8,68 +8,56 @@
 
   <ReportPage Name="Page1" PaperWidth="210" PaperHeight="297">
     
-    <!-- NAGŁÓWEK ZE ZDJĘCIEM -->
-    <PictureObject Name="HeaderImage" 
-                   Left="0" Top="0" Width="720" Height="150"
-                   SizeMode="StretchImage"
-                   Image=""/>
+    <!-- Nagłówek systemu -->
+    <TextObject Name="SystemHeader" 
+                Left="0" Top="10" Width="720" Height="25"
+                Font="Arial, 12pt, Bold"
+                HorzAlign="Center"
+                TextFill.Color="DarkBlue"
+                Text="System Generowania Testów"/>
 
     <!-- Tytuł główny -->
     <TextObject Name="Title" 
-                Left="20" Top="160" Width="680" Height="30"
-                Font="Montserrat, 20pt, Bold"
+                Left="0" Top="45" Width="720" Height="30"
+                Font="Arial, 16pt, Bold"
                 HorzAlign="Center"
-                TextFill.Color="#FF3366"
+                TextFill.Color="Black"
                 Text="Tytuł raportu"/>
 
-    <!-- Sekcja 1 -->
-    <ShapeObject Name="Panel1" 
-                 Left="20" Top="210" Width="680" Height="90"
-                 Fill.Color="#1A1A1A" Fill.Blend="0.35"/>
-
+    <!-- Informacja o dacie generowania -->
     <TextObject Name="Panel1Header"
-                Left="30" Top="220" Width="300" Height="20"
-                Text="Nagłówek sekcji 1"
-                Font="Montserrat, 12pt, Bold"
-                TextFill.Color="#FF3366"/>
+                Left="20" Top="85" Width="680" Height="20"
+                Text="Raport wygenerowany: [Date]"
+                Font="Arial, 10pt, Regular"
+                TextFill.Color="Black"/>
 
+    <!-- Podtytuł -->
     <TextObject Name="Panel1Body"
-                Left="30" Top="250" Width="650" Height="40"
-                Text="Treść sekcji 1..."
-                Font="Montserrat, 10pt"
-                TextFill.Color="White"/>
+                Left="20" Top="110" Width="680" Height="25"
+                Text="Podtytuł raportu"
+                Font="Arial, 12pt, Bold"
+                TextFill.Color="Black"/>
 
-    <!-- Sekcja 2 -->
-    <ShapeObject Name="Panel2" 
-                 Left="20" Top="320" Width="680" Height="90"
-                 Fill.Color="#1A1A1A" Fill.Blend="0.35"/>
-
+    <!-- Nagłówki kolumn (opcjonalnie, będą dynamicznie generowane) -->
     <TextObject Name="Panel2Header"
-                Left="30" Top="330" Width="300" Height="20"
-                Text="Nagłówek sekcji 2"
-                Font="Montserrat, 12pt, Bold"
-                TextFill.Color="#FF3366"/>
+                Left="20" Top="145" Width="680" Height="20"
+                Font="Arial, 9pt, Bold"
+                TextFill.Color="Black"
+                Text="Nagłówki kolumn pojawią się tutaj"
+                Visible="False"/>
 
-    <TextObject Name="Panel2Body"
-                Left="30" Top="360" Width="650" Height="40"
-                Text="Treść sekcji 2..."
-                Font="Montserrat, 10pt"
-                TextFill.Color="White"/>
-
-    <!-- Lista elementów -->
-    <TextObject Name="ListHeader" 
-                Left="20" Top="430" Width="680" Height="25"
-                Text="Lista elementów:"
-                Font="Montserrat, 14pt, Bold"
-                TextFill.Color="#FF3366"/>
-
-    <DataBand Name="ListBand" Top="460" Height="30">
-      <TextObject Name="ListItem"
-                  Left="30" Top="5" Width="650" Height="20"
-                  Text="• Element listy (wstaw tu pole danych)"
-                  Font="Montserrat, 10pt"
-                  TextFill.Color="White"/>
+    <!-- Dane tabeli -->
+    <DataBand Name="ListBand" Top="170" Height="25">
+      <!-- Tabela będzie generowana dynamicznie w kodzie -->
     </DataBand>
+
+    <!-- Stopka z numeracją stron -->
+    <TextObject Name="PageFooter"
+                Left="0" Top="570" Width="720" Height="20"
+                Font="Arial, 8pt, Regular"
+                HorzAlign="Right"
+                TextFill.Color="Black"
+                Text="Strona [Page#] z [TotalPages#]"/>
 
   </ReportPage>
 </Report>
