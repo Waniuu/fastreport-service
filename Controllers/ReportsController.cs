@@ -1,7 +1,7 @@
 using FastReport;
 using FastReport.Export.PdfSimple;
 using FastReport.Utils;
-using FastReport.Table;
+using FastReport.Table; // Ważne dla tabel
 using Microsoft.AspNetCore.Mvc;
 using System.Data;
 using System.Drawing; 
@@ -17,225 +17,220 @@ namespace FastReportService.Controllers
     public class ReportsController : ControllerBase
     {
         // =========================================================
-        // ENDPOINTY
+        // ENDPOINTY (Wszystkie używają nowej funkcji GenerateBeautifulReport)
         // =========================================================
         
-        [HttpPost("questions-stats")]
-        public IActionResult GenerateStats([FromBody] List<Dictionary<string, object>> data)
-        {
-            return GeneratePdfFromData(data, "RAPORT STATYSTYK", "Dane wygenerowane z bazy");
-        }
-
-        [HttpPost("users")] 
-        [HttpPost("students-list")] // Obsługa obu nazw
+        [HttpPost("students-list")]
         public IActionResult GenerateUsers([FromBody] List<Dictionary<string, object>> data)
         {
-            return GeneratePdfFromData(data, "LISTA STUDENTÓW", "Aktualny wykaz osób w systemie");
+            return GenerateBeautifulReport(data, "LISTA STUDENTÓW");
         }
 
         [HttpPost("exam-results")]
         public IActionResult GenerateExam([FromBody] List<Dictionary<string, object>> data)
         {
-            return GeneratePdfFromData(data, "WYNIKI EGZAMINU", "Protokół wyników testu");
+            return GenerateBeautifulReport(data, "WYNIKI EGZAMINU");
         }
 
         [HttpPost("questions-bank")]
         public IActionResult GenerateQuestions([FromBody] List<Dictionary<string, object>> data)
         {
-            return GeneratePdfFromData(data, "BANK PYTAŃ", "Wykaz pytań z bazy");
+            return GenerateBeautifulReport(data, "BANK PYTAŃ");
         }
 
         [HttpPost("tests-stats")]
-        public IActionResult GenerateTestStats([FromBody] List<Dictionary<string, object>> data)
+        public IActionResult GenerateStats([FromBody] List<Dictionary<string, object>> data)
         {
-            return GeneratePdfFromData(data, "STATYSTYKA TESTÓW", "Zestawienie zdawalności");
+            return GenerateBeautifulReport(data, "STATYSTYKA TESTÓW");
         }
 
         // =========================================================
-        // SILNIK GENEROWANIA
+        // LOGIKA GENEROWANIA "PIĘKNEGO" RAPORTU (Code-First)
         // =========================================================
-        
-        private IActionResult GeneratePdfFromData(List<Dictionary<string, object>> jsonData, string title, string subtitle)
+        private IActionResult GenerateBeautifulReport(List<Dictionary<string, object>> jsonData, string reportTitle)
         {
-            try 
+            try
             {
-                var report = new Report();
-                
-                // Ładowanie szablonu (z fallbackiem ścieżki)
-                string reportPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Reports", "raport_testow.frx");
-                if (!System.IO.File.Exists(reportPath)) reportPath = "Reports/raport_testow.frx";
-                
-                report.Load(reportPath);
-                
-                // Naprawa fontów
-                try { FixReportVisuals(report); } catch { }
+                // 1. Konwersja JSON -> DataTable (dla łatwiejszej obsługi w FastReport)
+                DataTable table = JsonToDataTable(jsonData);
+                table.TableName = "Dane";
 
-                // Nagłówki
-                SetText(report, "Title", title);
-                SetText(report, "Panel1Header", subtitle);
-                SetText(report, "Panel1Body", $"Data: {DateTime.Now:yyyy-MM-dd HH:mm}");
-
-                // Dane
-                var table = JsonToDataTable(jsonData);
-
-                // Rejestracja danych
+                // 2. Tworzymy pusty raport
+                Report report = new Report();
                 report.RegisterData(table, "Dane");
                 report.GetDataSource("Dane").Enabled = true;
 
-                // Czyszczenie starego szablonu
-                DataBand dataBand = report.FindObject("ListBand") as DataBand;
-                if (dataBand != null)
+                // 3. STRONA
+                ReportPage page = new ReportPage();
+                page.Name = "Page1";
+                // Ustaw marginesy
+                page.LeftMargin = 10; 
+                page.RightMargin = 10;
+                page.TopMargin = 10;
+                page.BottomMargin = 10;
+                report.Pages.Add(page);
+
+                // --------------------------------------------------------
+                // A. NAGŁÓWEK RAPORTU (Różowy pasek)
+                // --------------------------------------------------------
+                ReportTitleBand titleBand = new ReportTitleBand();
+                titleBand.Name = "ReportTitle";
+                titleBand.Height = Units.Centimeters * 3.0f;
+                page.ReportTitle = titleBand;
+
+                // Różowe tło
+                ShapeObject headerBg = new ShapeObject();
+                headerBg.Parent = titleBand;
+                headerBg.Bounds = new RectangleF(0, 0, page.Width, Units.Centimeters * 2.0f);
+                headerBg.Fill = new SolidFill(Color.FromArgb(255, 51, 102)); // Twój #ff3366
+                headerBg.ShapeKind = ShapeKind.Rectangle;
+                headerBg.Border.Lines = BorderLines.None;
+
+                // Główny tytuł (System...)
+                TextObject sysTitle = new TextObject();
+                sysTitle.Parent = titleBand;
+                sysTitle.Bounds = new RectangleF(Units.Centimeters * 0.5f, Units.Centimeters * 0.2f, page.Width, Units.Centimeters * 1.0f);
+                sysTitle.Text = "System Generowania Testów";
+                sysTitle.Font = new Font("Arial", 18, FontStyle.Bold);
+                sysTitle.TextColor = Color.White;
+
+                // Data
+                TextObject dateTxt = new TextObject();
+                dateTxt.Parent = titleBand;
+                dateTxt.Bounds = new RectangleF(Units.Centimeters * 0.5f, Units.Centimeters * 1.2f, page.Width, Units.Centimeters * 0.5f);
+                dateTxt.Text = "Wygenerowano: " + System.DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+                dateTxt.Font = new Font("Arial", 10, FontStyle.Regular);
+                dateTxt.TextColor = Color.White;
+
+                // Tytuł konkretnego raportu (np. LISTA STUDENTÓW)
+                TextObject subTitle = new TextObject();
+                subTitle.Parent = titleBand;
+                subTitle.Bounds = new RectangleF(0, Units.Centimeters * 2.2f, page.Width, Units.Centimeters * 0.8f);
+                subTitle.Text = reportTitle;
+                subTitle.Font = new Font("Arial", 14, FontStyle.Bold);
+                subTitle.TextColor = Color.Black;
+
+                // --------------------------------------------------------
+                // B. NAGŁÓWEK TABELI (Ciemny pasek z nazwami kolumn)
+                // --------------------------------------------------------
+                PageHeaderBand headerBand = new PageHeaderBand();
+                headerBand.Height = Units.Centimeters * 0.8f;
+                page.PageHeader = headerBand;
+
+                // Obliczamy szerokość kolumn (równy podział)
+                float colWidth = page.Width / (table.Columns.Count > 0 ? table.Columns.Count : 1);
+                float currentX = 0;
+
+                foreach (DataColumn col in table.Columns)
                 {
-                    dataBand.Objects.Clear();
-                    dataBand.DataSource = report.GetDataSource("Dane");
+                    TextObject cell = new TextObject();
+                    cell.Parent = headerBand;
+                    cell.Bounds = new RectangleF(currentX, 0, colWidth, headerBand.Height);
+                    cell.Text = col.ColumnName;
+                    cell.Font = new Font("Arial", 10, FontStyle.Bold);
+                    cell.Fill = new SolidFill(Color.FromArgb(40, 40, 40)); // Ciemnoszary
+                    cell.TextColor = Color.White;
+                    cell.HorzAlign = HorzAlign.Center;
+                    cell.VertAlign = VertAlign.Center;
+                    cell.Border.Lines = BorderLines.All;
+                    cell.Border.Color = Color.Gray;
+                    
+                    currentX += colWidth;
                 }
 
-                // Generowanie tabeli lub komunikatu
-                if (table.Rows.Count > 0)
+                // --------------------------------------------------------
+                // C. DANE (Tabela w kratkę)
+                // --------------------------------------------------------
+                DataBand dataBand = new DataBand();
+                dataBand.Height = Units.Centimeters * 0.8f;
+                dataBand.DataSource = report.GetDataSource("Dane");
+                page.Bands.Add(dataBand);
+
+                currentX = 0;
+                foreach (DataColumn col in table.Columns)
                 {
-                    BuildDynamicTable(report, table);
-                }
-                else
-                {
-                    if (dataBand != null)
-                    {
-                        var noDataText = new FastReport.TextObject();
-                        noDataText.Parent = dataBand;
-                        noDataText.Bounds = new RectangleF(0, 0, 700, 30);
-                        noDataText.Text = "BRAK DANYCH DO WYŚWIETLENIA";
-                        noDataText.Font = new Font("DejaVu Sans", 12, FontStyle.Bold);
-                        noDataText.TextFill = new SolidFill(Color.Red);
-                        noDataText.HorzAlign = HorzAlign.Center;
-                    }
+                    TextObject cell = new TextObject();
+                    cell.Parent = dataBand;
+                    cell.Bounds = new RectangleF(currentX, 0, colWidth, dataBand.Height);
+                    // Bindowanie danych [Dane.NazwaKolumny]
+                    cell.Text = "[Dane." + col.ColumnName + "]"; 
+                    cell.Font = new Font("Arial", 10, FontStyle.Regular);
+                    cell.VertAlign = VertAlign.Center;
+                    
+                    // KRATKA EXCELOWA
+                    cell.Border.Lines = BorderLines.All;
+                    cell.Border.Color = Color.LightGray;
+
+                    // Opcjonalnie: wyrównanie liczb do prawej
+                    if (IsNumeric(col.DataType))
+                        cell.HorzAlign = HorzAlign.Right;
+                    
+                    currentX += colWidth;
                 }
 
+                // 4. Generowanie PDF
                 report.Prepare();
-
-                using var ms = new MemoryStream();
-                var pdf = new PDFSimpleExport();
-                report.Export(pdf, ms);
-                ms.Position = 0;
-
-                return File(ms.ToArray(), "application/pdf", "raport.pdf");
+                
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    PDFSimpleExport export = new PDFSimpleExport();
+                    export.Export(report, ms);
+                    return File(ms.ToArray(), "application/pdf", "raport.pdf");
+                }
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                Console.WriteLine($"[ERROR] {ex.Message}\n{ex.StackTrace}");
-                return StatusCode(500, new { error = ex.Message, stack = ex.StackTrace });
+                return StatusCode(500, $"Błąd generowania PDF: {ex.Message} \n {ex.StackTrace}");
             }
         }
 
-        // =========================================================
-        // METODY POMOCNICZE
-        // =========================================================
-
+        // --- Helper: Konwersja JSON List do DataTable ---
         private DataTable JsonToDataTable(List<Dictionary<string, object>> list)
         {
-            DataTable table = new DataTable("Dane");
-            if (list == null || list.Count == 0) return table;
+            DataTable dt = new DataTable();
+            if (list == null || list.Count == 0) return dt;
 
-            // Tworzenie kolumn (bezpieczne nazwy bez spacji)
+            // Tworzenie kolumn na podstawie pierwszego wiersza
             foreach (var key in list[0].Keys)
             {
-                string safeColumnName = key.Replace(" ", "_").Replace(".", "");
-                table.Columns.Add(safeColumnName, typeof(string));
+                dt.Columns.Add(key);
             }
 
+            // Dodawanie wierszy
             foreach (var item in list)
             {
-                var row = table.NewRow();
-                int colIndex = 0;
+                DataRow row = dt.NewRow();
                 foreach (var key in item.Keys)
                 {
-                    object val = item[key];
-                    if (val == null) row[colIndex] = "";
-                    else if (val is JsonElement je) row[colIndex] = je.ToString();
-                    else row[colIndex] = val.ToString();
-                    colIndex++;
+                    // Obsługa nulli i typów
+                    var val = item[key];
+                    row[key] = val?.ToString() ?? "";
                 }
-                table.Rows.Add(row);
+                dt.Rows.Add(row);
             }
-            return table;
-        }
-        
-        private void BuildDynamicTable(Report report, DataTable data)
-        {
-            DataBand dataBand = report.FindObject("ListBand") as DataBand;
-            if (dataBand == null) return;
-
-            TableObject table = new TableObject();
-            table.Name = "DynamicTable_" + Guid.NewGuid().ToString().Replace("-", "");
-            table.Parent = dataBand;
-            table.Width = 700; 
-            table.Height = 25;
-            
-            // Konfiguracja wymiarów tabeli
-            table.ColumnCount = data.Columns.Count;
-            table.RowCount = 1; 
-            
-            float colWidth = 700f / (float)data.Columns.Count;
-
-            for (int i = 0; i < data.Columns.Count; i++)
-            {
-                // Ustawienie szerokości kolumny
-                table.Columns[i].Width = colWidth;
-
-                // --- TU BYŁ BŁĄD ---
-                // Poprawne indeksowanie: table[kolumna, wiersz]
-                // Wcześniej było table[0, i] (błędne), teraz jest table[i, 0] (poprawne)
-                TableCell cell = table[i, 0]; 
-                
-                // Zabezpieczenie na wypadek, gdyby komórka nie istniała
-                if (cell == null)
-                {
-                    cell = new TableCell();
-                    cell.Parent = table.Rows[0];
-                }
-                
-                string colName = data.Columns[i].ColumnName;
-                cell.Text = $"[Dane.{colName}]";
-                
-                cell.Font = new Font("DejaVu Sans", 9, FontStyle.Regular);
-                cell.TextFill = new SolidFill(Color.Black);
-                cell.Border.Lines = BorderLines.All;
-                cell.Border.Color = Color.Black;
-                cell.VertAlign = VertAlign.Center;
-                cell.HorzAlign = HorzAlign.Center;
-            }
-            
-            // Nagłówki w Panel2 (opcjonalnie)
-            var headerObj = report.FindObject("Panel2Header") as FastReport.TextObject;
-            if (headerObj != null)
-            {
-                var headers = data.Columns.Cast<DataColumn>()
-                                  .Select(c => c.ColumnName.Replace("_", " "))
-                                  .ToArray();
-                headerObj.Text = string.Join(" | ", headers);
-                headerObj.Font = new Font("DejaVu Sans", 9, FontStyle.Bold);
-                headerObj.TextFill = new SolidFill(Color.Black);
-            }
-            var p2b = report.FindObject("Panel2Body") as FastReport.TextObject;
-            if(p2b != null) p2b.Text = "";
+            return dt;
         }
 
-        private void FixReportVisuals(Report report)
+        private bool IsNumeric(System.Type type)
         {
-            string fontName = "DejaVu Sans"; 
-            foreach (Base obj in report.AllObjects)
+            if (type == null) return false;
+            switch (System.Type.GetTypeCode(type))
             {
-                if (obj is FastReport.TextObject textObj)
-                {
-                    textObj.Font = new Font(fontName, textObj.Font.Size, textObj.Font.Style);
-                    textObj.TextFill = new SolidFill(Color.Black);
-                }
-                if (obj is FastReport.ShapeObject shapeObj) shapeObj.Fill = new SolidFill(Color.LightGray);
+                case System.TypeCode.Byte:
+                case System.TypeCode.SByte:
+                case System.TypeCode.UInt16:
+                case System.TypeCode.UInt32:
+                case System.TypeCode.UInt64:
+                case System.TypeCode.Int16:
+                case System.TypeCode.Int32:
+                case System.TypeCode.Int64:
+                case System.TypeCode.Decimal:
+                case System.TypeCode.Double:
+                case System.TypeCode.Single:
+                    return true;
+                default:
+                    return false;
             }
-        }
-
-        private void SetText(Report report, string objectName, string text)
-        {
-            var obj = report.FindObject(objectName) as FastReport.TextObject;
-            if (obj != null) obj.Text = text;
         }
     }
 }
