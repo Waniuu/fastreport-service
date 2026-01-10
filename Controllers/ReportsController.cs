@@ -80,7 +80,7 @@ namespace FastReportService.Controllers
                 report.RegisterData(table, "Dane");
                 report.GetDataSource("Dane").Enabled = true;
 
-                DataBand dataBand = report.FindObject("ListBand") as DataBand;
+                DataBand? dataBand = report.FindObject("ListBand") as DataBand;
                 if (dataBand != null)
                 {
                     // Usuń istniejący obiekt ListItem z szablonu
@@ -160,7 +160,7 @@ namespace FastReportService.Controllers
         
         private void BuildDynamicTable(Report report, DataTable data)
         {
-            DataBand dataBand = report.FindObject("ListBand") as DataBand;
+            DataBand? dataBand = report.FindObject("ListBand") as DataBand;
             if (dataBand == null) return;
 
             // Utwórz tabelę z nagłówkiem i danymi
@@ -196,7 +196,7 @@ namespace FastReportService.Controllers
                 headerCell.Fill = new SolidFill(Color.LightGray);
                 headerCell.VertAlign = VertAlign.Center;
                 headerCell.HorzAlign = HorzAlign.Center;
-                headerCell.Padding = new System.Windows.Forms.Padding(3);
+                headerCell.Padding = new FastReport.Utils.Padding(3, 3, 3, 3); // Poprawione: wszystkie 4 wartości
                 
                 // Wiersze danych
                 for (int row = 0; row < data.Rows.Count; row++)
@@ -215,7 +215,7 @@ namespace FastReportService.Controllers
                     dataCell.Border.Color = Color.LightGray;
                     dataCell.VertAlign = VertAlign.Center;
                     dataCell.HorzAlign = HorzAlign.Left;
-                    dataCell.Padding = new System.Windows.Forms.Padding(3);
+                    dataCell.Padding = new FastReport.Utils.Padding(3, 3, 3, 3); // Poprawione: wszystkie 4 wartości
                 }
             }
             
