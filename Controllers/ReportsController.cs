@@ -68,11 +68,13 @@ namespace FastReportService.Controllers
                 
                 try { FixReportVisuals(report); } catch { }
 
-                // Ustawienie nagłówków zgodnie z przykladem.pdf
-                SetText(report, "SystemHeader", "System Generowania Testów");
+                // Ustawienie tekstu w istniejących obiektach z szablonu
                 SetText(report, "Title", title);
                 SetText(report, "Panel1Header", "Raport wygenerowany: " + DateTime.Now.ToString("dd.MM.yyyy, HH:mm:ss"));
                 SetText(report, "Panel1Body", subtitle);
+                
+                // Ukryj niepotrzebne elementy z szablonu
+                HideUnusedObjects(report);
 
                 var table = JsonToDataTable(jsonData);
                 report.RegisterData(table, "Dane");
@@ -81,7 +83,10 @@ namespace FastReportService.Controllers
                 DataBand dataBand = report.FindObject("ListBand") as DataBand;
                 if (dataBand != null)
                 {
-                    dataBand.Objects.Clear();
+                    // Usuń istniejący obiekt ListItem z szablonu
+                    var listItem = report.FindObject("ListItem") as FastReport.TextObject;
+                    if (listItem != null) listItem.Dispose();
+                    
                     dataBand.DataSource = report.GetDataSource("Dane");
                 }
 
@@ -94,8 +99,9 @@ namespace FastReportService.Controllers
                     if (dataBand != null)
                     {
                         var noDataText = new FastReport.TextObject();
+                        noDataText.Name = "NoDataText";
                         noDataText.Parent = dataBand;
-                        noDataText.Bounds = new RectangleF(0, 0, 700, 30);
+                        noDataText.Bounds = new RectangleF(0, 0, 680, 30);
                         noDataText.Text = "BRAK DANYCH DO WYŚWIETLENIA";
                         noDataText.Font = new Font("Arial", 12, FontStyle.Bold);
                         noDataText.TextFill = new SolidFill(Color.Red);
@@ -103,14 +109,8 @@ namespace FastReportService.Controllers
                     }
                 }
 
-                // Dodanie stopki z numeracją stron
-                var pageFooter = report.FindObject("PageFooter") as FastReport.TextObject;
-                if (pageFooter != null)
-                {
-                    pageFooter.Text = "Strona [Page#] z [TotalPages#]";
-                    pageFooter.Font = new Font("Arial", 8, FontStyle.Regular);
-                    pageFooter.HorzAlign = HorzAlign.Right;
-                }
+                // Utwórz stopkę z numeracją stron
+                CreatePageFooter(report);
 
                 report.Prepare();
 
@@ -137,7 +137,7 @@ namespace FastReportService.Controllers
             DataTable table = new DataTable("Dane");
             if (list == null || list.Count == 0) return table;
 
-            // Tworzenie kolumn z oryginalnymi nazwami (bez zamiany spacji)
+            // Tworzenie kolumn z oryginalnymi nazwami
             foreach (var key in list[0].Keys)
             {
                 table.Columns.Add(key, typeof(string));
@@ -163,23 +163,23 @@ namespace FastReportService.Controllers
             DataBand dataBand = report.FindObject("ListBand") as DataBand;
             if (dataBand == null) return;
 
-            // Tworzenie tabeli z nagłówkiem i wierszem danych
+            // Utwórz tabelę z nagłówkiem i danymi
             TableObject table = new TableObject();
-            table.Name = "DynamicTable_" + Guid.NewGuid().ToString().Replace("-", "");
+            table.Name = "DynamicTable";
             table.Parent = dataBand;
-            table.Width = 700;
-            table.Height = 40; // Większa wysokość dla lepszego wyglądu
+            table.Width = 680; // Dopasuj do szerokości szablonu
+            table.Height = 25 * (data.Rows.Count + 1); // Wysokość: nagłówek + wiersze danych
             
             table.ColumnCount = data.Columns.Count;
-            table.RowCount = 2; // Dwa wiersze: nagłówek i dane
+            table.RowCount = data.Rows.Count + 1; // +1 dla nagłówka
             
-            // Ustawienie automatycznych szerokości kolumn
-            float[] columnWidths = CalculateColumnWidths(data);
+            // Oblicz szerokości kolumn
+            float[] columnWidths = CalculateColumnWidths(data, 680);
             for (int i = 0; i < data.Columns.Count; i++)
             {
                 table.Columns[i].Width = columnWidths[i];
                 
-                // Nagłówek tabeli
+                // Nagłówek tabeli (wiersz 0)
                 TableCell headerCell = table[i, 0];
                 if (headerCell == null)
                 {
@@ -198,60 +198,62 @@ namespace FastReportService.Controllers
                 headerCell.HorzAlign = HorzAlign.Center;
                 headerCell.Padding = new System.Windows.Forms.Padding(3);
                 
-                // Komórka z danymi
-                TableCell dataCell = table[i, 1];
-                if (dataCell == null)
+                // Wiersze danych
+                for (int row = 0; row < data.Rows.Count; row++)
                 {
-                    dataCell = new TableCell();
-                    dataCell.Parent = table.Rows[1];
+                    TableCell dataCell = table[i, row + 1];
+                    if (dataCell == null)
+                    {
+                        dataCell = new TableCell();
+                        dataCell.Parent = table.Rows[row + 1];
+                    }
+                    
+                    dataCell.Text = $"[Dane.{colName}]";
+                    dataCell.Font = new Font("Arial", 9, FontStyle.Regular);
+                    dataCell.TextFill = new SolidFill(Color.Black);
+                    dataCell.Border.Lines = BorderLines.All;
+                    dataCell.Border.Color = Color.LightGray;
+                    dataCell.VertAlign = VertAlign.Center;
+                    dataCell.HorzAlign = HorzAlign.Left;
+                    dataCell.Padding = new System.Windows.Forms.Padding(3);
                 }
-                
-                dataCell.Text = $"[Dane.{colName}]";
-                dataCell.Font = new Font("Arial", 9, FontStyle.Regular);
-                dataCell.TextFill = new SolidFill(Color.Black);
-                dataCell.Border.Lines = BorderLines.All;
-                dataCell.Border.Color = Color.LightGray;
-                dataCell.VertAlign = VertAlign.Center;
-                dataCell.HorzAlign = HorzAlign.Left;
-                dataCell.Padding = new System.Windows.Forms.Padding(3);
             }
             
-            // Ustawienie, aby nagłówek powtarzał się na każdej stronie
+            // Ustaw, aby nagłówek powtarzał się na każdej stronie
             table.RepeatHeaders = true;
-            
-            // Wyczyść stare nagłówki
-            var headerObj = report.FindObject("Panel2Header") as FastReport.TextObject;
-            if (headerObj != null) headerObj.Text = "";
-            var p2b = report.FindObject("Panel2Body") as FastReport.TextObject;
-            if(p2b != null) p2b.Text = "";
         }
 
-        private float[] CalculateColumnWidths(DataTable data)
+        private float[] CalculateColumnWidths(DataTable data, float totalWidth)
         {
-            float totalWidth = 700f;
             float[] widths = new float[data.Columns.Count];
             
             // Domyślne proporcje dla typowych kolumn
-            Dictionary<string, float> defaultRatios = new Dictionary<string, float>
+            Dictionary<string, float> columnRatios = new Dictionary<string, float>
             {
                 { "lp", 0.5f },
                 { "id", 0.7f },
-                { "email", 1.5f },
+                { "l.p", 0.5f },
+                { "numer", 0.5f },
+                { "imie", 1.2f },
+                { "nazwisko", 1.5f },
+                { "email", 2.0f },
+                { "status", 1.0f },
+                { "wynik", 1.0f },
                 { "data", 1.2f },
-                { "status", 0.8f }
+                { "ocena", 0.8f }
             };
             
             float totalRatio = 0;
             for (int i = 0; i < data.Columns.Count; i++)
             {
                 string colName = data.Columns[i].ColumnName.ToLower();
-                float ratio = 1.0f; // Domyślna proporcja
+                float ratio = 1.0f;
                 
-                foreach (var key in defaultRatios.Keys)
+                foreach (var key in columnRatios.Keys)
                 {
                     if (colName.Contains(key))
                     {
-                        ratio = defaultRatios[key];
+                        ratio = columnRatios[key];
                         break;
                     }
                 }
@@ -260,7 +262,7 @@ namespace FastReportService.Controllers
                 totalRatio += ratio;
             }
             
-            // Przeliczenie na rzeczywiste szerokości
+            // Przelicz na rzeczywiste szerokości
             for (int i = 0; i < widths.Length; i++)
             {
                 widths[i] = (widths[i] / totalRatio) * totalWidth;
@@ -271,7 +273,7 @@ namespace FastReportService.Controllers
 
         private void FixReportVisuals(Report report)
         {
-            string fontName = "Arial"; // Zmiana na Arial dla lepszej czytelności
+            string fontName = "Arial";
             foreach (Base obj in report.AllObjects)
             {
                 if (obj is FastReport.TextObject textObj)
@@ -280,21 +282,49 @@ namespace FastReportService.Controllers
                     textObj.TextFill = new SolidFill(Color.Black);
                 }
                 if (obj is FastReport.ShapeObject shapeObj) 
-                    shapeObj.Fill = new SolidFill(Color.LightGray);
-                if (obj is FastReport.TableObject tableObj)
+                    shapeObj.Fill = new SolidFill(Color.Transparent);
+                    
+                if (obj is FastReport.PictureObject pictureObj && pictureObj.Name == "HeaderImage")
                 {
-                    foreach (TableRow row in tableObj.Rows)
-                    {
-                        foreach (TableCell cell in row)
-                        {
-                            if (cell != null)
-                            {
-                                cell.Font = new Font(fontName, cell.Font.Size, cell.Font.Style);
-                            }
-                        }
-                    }
+                    // Ukryj obrazek nagłówka, jeśli nie jest potrzebny
+                    pictureObj.Visible = false;
                 }
             }
+        }
+
+        private void HideUnusedObjects(Report report)
+        {
+            // Ukryj Panel2, który nie jest potrzebny w naszym przypadku
+            var panel2 = report.FindObject("Panel2") as FastReport.ShapeObject;
+            if (panel2 != null) panel2.Visible = false;
+            
+            var panel2Header = report.FindObject("Panel2Header") as FastReport.TextObject;
+            if (panel2Header != null) panel2Header.Visible = false;
+            
+            var panel2Body = report.FindObject("Panel2Body") as FastReport.TextObject;
+            if (panel2Body != null) panel2Body.Visible = false;
+            
+            // Ukryj ListHeader z szablonu
+            var listHeader = report.FindObject("ListHeader") as FastReport.TextObject;
+            if (listHeader != null) listHeader.Visible = false;
+        }
+
+        private void CreatePageFooter(Report report)
+        {
+            // Znajdź stronę raportu
+            var page = report.Pages[0] as ReportPage;
+            if (page == null) return;
+
+            // Utwórz stopkę
+            var pageFooter = new FastReport.TextObject();
+            pageFooter.Name = "PageFooter";
+            pageFooter.Parent = page;
+            pageFooter.Bounds = new RectangleF(0, page.Height - 30, page.Width, 20);
+            pageFooter.Text = "Strona [Page#] z [TotalPages#]";
+            pageFooter.Font = new Font("Arial", 8, FontStyle.Regular);
+            pageFooter.HorzAlign = HorzAlign.Right;
+            pageFooter.VertAlign = VertAlign.Bottom;
+            pageFooter.TextFill = new SolidFill(Color.Black);
         }
 
         private void SetText(Report report, string objectName, string text)
@@ -303,17 +333,27 @@ namespace FastReportService.Controllers
             if (obj != null) 
             {
                 obj.Text = text;
-                // Ustawienie stylu dla tytułów
+                
+                // Styl dla tytułu
                 if (objectName == "Title")
                 {
                     obj.Font = new Font("Arial", 16, FontStyle.Bold);
                     obj.HorzAlign = HorzAlign.Center;
+                    obj.TextFill = new SolidFill(Color.Black);
                 }
-                else if (objectName == "SystemHeader")
+                
+                // Styl dla daty wygenerowania
+                if (objectName == "Panel1Header")
+                {
+                    obj.Font = new Font("Arial", 10, FontStyle.Regular);
+                    obj.HorzAlign = HorzAlign.Left;
+                }
+                
+                // Styl dla podtytułu
+                if (objectName == "Panel1Body")
                 {
                     obj.Font = new Font("Arial", 12, FontStyle.Bold);
-                    obj.TextFill = new SolidFill(Color.DarkBlue);
-                    obj.HorzAlign = HorzAlign.Center;
+                    obj.HorzAlign = HorzAlign.Left;
                 }
             }
         }
