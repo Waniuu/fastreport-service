@@ -78,56 +78,37 @@ namespace FastReportService.Controllers
                 report.RegisterData(table, "Dane");
                 
                 // KLUCZOWA ZMIANA: Nie używamy DataSource dla DataBand
-                // Zamiast tego tworzymy tabelę bezpośrednio na stronie
+                // Zamiast tego tworzymy tabelę w DataBand, ale tylko raz
 
                 DataBand? dataBand = report.FindObject("ListBand") as DataBand;
                 if (dataBand != null)
                 {
-                    // Usuń stary ListItem
                     var listItem = report.FindObject("ListItem") as FastReport.TextObject;
                     if (listItem != null) listItem.Dispose();
                     
-                    // Odłączamy DataBand od danych
+                    // Odłączamy DataBand od danych i ustawiamy, żeby wykonał się tylko raz
                     dataBand.DataSource = null;
                     
-                    // Nie używamy Count ani CountExpression
-                    // Zamiast tego usuwamy DataBand całkowicie i tworzymy tabelę bezpośrednio
-                    // na stronie raportu
-                    var page = report.Pages[0] as ReportPage;
-                    if (page != null)
+                    // W FastReport .NET Core, aby DataBand wykonał się tylko raz,
+                    // możemy ustawić jego właściwość RowCount na 1 (jeśli istnieje)
+                    // Lub użyć innego podejścia: ustawiamy DataBand.Visible = false
+                    // i tworzymy tabelę bezpośrednio na stronie
+                    
+                    if (table.Rows.Count > 0)
                     {
-                        // Usuń DataBand z strony
-                        page.Objects.Remove(dataBand);
-                        
-                        // Utwórz tabelę bezpośrednio na stronie
-                        if (table.Rows.Count > 0)
-                        {
-                            var dynamicTable = BuildTableOnPage(page, table, 170); // 170 to pozycja Y
-                            page.Objects.Add(dynamicTable);
-                        }
-                        else
-                        {
-                            // Obsługa braku danych
-                            var noDataText = new FastReport.TextObject();
-                            noDataText.Name = "NoDataText";
-                            noDataText.Parent = page;
-                            noDataText.Bounds = new RectangleF(20, 170, 680, 30);
-                            noDataText.Text = "BRAK DANYCH DO WYŚWIETLENIA";
-                            noDataText.Font = new Font("Arial", 12, FontStyle.Bold);
-                            noDataText.TextFill = new SolidFill(Color.Red);
-                            noDataText.HorzAlign = HorzAlign.Center;
-                            page.Objects.Add(noDataText);
-                        }
+                        // Tworzymy tabelę w DataBand (który wykona się tylko raz)
+                        BuildTableInDataBand(dataBand, table);
                     }
-                }
-                else
-                {
-                    // Jeśli nie ma DataBand, utwórz tabelę bezpośrednio na stronie
-                    var page = report.Pages[0] as ReportPage;
-                    if (page != null && table.Rows.Count > 0)
+                    else
                     {
-                        var dynamicTable = BuildTableOnPage(page, table, 170);
-                        page.Objects.Add(dynamicTable);
+                        var noDataText = new FastReport.TextObject();
+                        noDataText.Name = "NoDataText";
+                        noDataText.Parent = dataBand;
+                        noDataText.Bounds = new RectangleF(0, 0, 680, 30);
+                        noDataText.Text = "BRAK DANYCH DO WYŚWIETLENIA";
+                        noDataText.Font = new Font("Arial", 12, FontStyle.Bold);
+                        noDataText.TextFill = new SolidFill(Color.Red);
+                        noDataText.HorzAlign = HorzAlign.Center;
                     }
                 }
 
@@ -178,7 +159,7 @@ namespace FastReportService.Controllers
             return table;
         }
         
-        private TableObject BuildTableOnPage(ReportPage page, DataTable data, float startY)
+        private void BuildTableInDataBand(DataBand dataBand, DataTable data)
         {
             Color headerBackColor = Color.FromArgb(41, 58, 74);
             Color headerTextColor = Color.White;
@@ -187,9 +168,9 @@ namespace FastReportService.Controllers
 
             TableObject table = new TableObject();
             table.Name = "DynamicTable";
-            table.Parent = page;
-            table.Left = 20;
-            table.Top = startY;
+            table.Parent = dataBand;
+            table.Left = 0;
+            table.Top = 0;
             table.Width = 680;
             
             float headerHeight = 35f;
@@ -197,7 +178,7 @@ namespace FastReportService.Controllers
             table.Height = headerHeight + (data.Rows.Count * rowHeight);
 
             table.ColumnCount = data.Columns.Count;
-            table.RowCount = data.Rows.Count + 1; // Nagłówek + wszystkie wiersze danych
+            table.RowCount = data.Rows.Count + 1;
 
             float[] columnWidths = CalculateColumnWidths(data, 680);
 
@@ -205,7 +186,7 @@ namespace FastReportService.Controllers
             {
                 table.Columns[i].Width = columnWidths[i];
 
-                // Nagłówek (tylko jeden wiersz nagłówka!)
+                // Nagłówek
                 TableCell headerCell = table[i, 0];
                 if (headerCell == null) 
                 { 
@@ -225,7 +206,7 @@ namespace FastReportService.Controllers
                 headerCell.HorzAlign = HorzAlign.Center;
                 headerCell.VertAlign = VertAlign.Center;
 
-                // Wiersze danych (bez referencji do [Dane.*] - używamy rzeczywistych wartości)
+                // Wiersze danych
                 for (int row = 0; row < data.Rows.Count; row++)
                 {
                     TableCell dataCell = table[i, row + 1];
@@ -237,7 +218,6 @@ namespace FastReportService.Controllers
 
                     table.Rows[row + 1].Height = rowHeight;
 
-                    // Pobierz rzeczywistą wartość z DataTable, NIE używaj [Dane.*]
                     string? cellValue = data.Rows[row][i].ToString();
                     dataCell.Text = cellValue ?? "";
                     
@@ -261,13 +241,6 @@ namespace FastReportService.Controllers
             }
 
             table.RepeatHeaders = true;
-            return table;
-        }
-
-        private void BuildDynamicTable(Report report, DataTable data)
-        {
-            // Metoda zachowana dla kompatybilności, ale nieużywana w nowym podejściu
-            // Możesz ją usunąć lub zachować jako backup
         }
 
         private bool IsNumeric(string? text)
@@ -363,6 +336,10 @@ namespace FastReportService.Controllers
         {
             var page = report.Pages[0] as ReportPage;
             if (page == null) return;
+
+            // Sprawdź, czy stopka już istnieje
+            var existingFooter = report.FindObject("PageFooter") as FastReport.TextObject;
+            if (existingFooter != null) return;
 
             var pageFooter = new FastReport.TextObject();
             pageFooter.Name = "PageFooter";
