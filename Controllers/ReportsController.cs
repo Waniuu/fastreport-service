@@ -55,78 +55,80 @@ namespace FastReportService.Controllers
         // SILNIK GENEROWANIA
         // =========================================================
         
-        private IActionResult GeneratePdfFromData(List<Dictionary<string, object>> jsonData, string title, string subtitle)
+       private IActionResult GeneratePdfFromData(List<Dictionary<string, object>> jsonData, string title, string subtitle)
+{
+    try 
+    {
+        var report = new Report();
+        
+        // Ładowanie raportu (bez zmian)
+        string reportPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Reports", "raport_testow.frx");
+        if (!System.IO.File.Exists(reportPath)) reportPath = "Reports/raport_testow.frx";
+        report.Load(reportPath);
+        
+        // Apply basic clean-up
+        try { FixReportVisuals(report); } catch { }
+
+        SetText(report, "Title", title);
+        SetText(report, "Panel1Header", "Raport wygenerowany: " + DateTime.Now.ToString("dd.MM.yyyy, HH:mm"));
+        SetText(report, "Panel1Body", subtitle);
+        
+        HideUnusedObjects(report);
+
+        var table = JsonToDataTable(jsonData);
+        report.RegisterData(table, "Dane");
+        // WAŻNE: Nie włączamy źródła danych dla raportu globalnie, aby uniknąć konfliktów
+        // report.GetDataSource("Dane").Enabled = true; 
+
+        DataBand? dataBand = report.FindObject("ListBand") as DataBand;
+        if (dataBand != null)
         {
-            try 
+            // Usuń stary ListItem
+            var listItem = report.FindObject("ListItem") as FastReport.TextObject;
+            if (listItem != null) listItem.Dispose();
+            
+            // FIX: Odłącz DataSource od Bandu. Band ma się wykonać RAZ, 
+            // a tabela wewnątrz niego wygeneruje wiersze dynamicznie.
+            dataBand.DataSource = null; 
+            dataBand.Count = 1; 
+        }
+
+        if (table.Rows.Count > 0)
+        {
+            BuildDynamicTable(report, table);
+        }
+        else
+        {
+            // Obsługa braku danych (bez zmian)
+            if (dataBand != null)
             {
-                var report = new Report();
-                
-                string reportPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Reports", "raport_testow.frx");
-                if (!System.IO.File.Exists(reportPath)) reportPath = "Reports/raport_testow.frx";
-                
-                report.Load(reportPath);
-                
-                try { FixReportVisuals(report); } catch { }
-
-                // Ustawienie tekstu w istniejących obiektach z szablonu
-                SetText(report, "Title", title);
-                SetText(report, "Panel1Header", "Raport wygenerowany: " + DateTime.Now.ToString("dd.MM.yyyy, HH:mm:ss"));
-                SetText(report, "Panel1Body", subtitle);
-                
-                // Ukryj niepotrzebne elementy z szablonu
-                HideUnusedObjects(report);
-
-                var table = JsonToDataTable(jsonData);
-                report.RegisterData(table, "Dane");
-                report.GetDataSource("Dane").Enabled = true;
-
-                DataBand? dataBand = report.FindObject("ListBand") as DataBand;
-                if (dataBand != null)
-                {
-                    // Usuń istniejący obiekt ListItem z szablonu
-                    var listItem = report.FindObject("ListItem") as FastReport.TextObject;
-                    if (listItem != null) listItem.Dispose();
-                    
-                    dataBand.DataSource = report.GetDataSource("Dane");
-                }
-
-                if (table.Rows.Count > 0)
-                {
-                    BuildDynamicTable(report, table);
-                }
-                else
-                {
-                    if (dataBand != null)
-                    {
-                        var noDataText = new FastReport.TextObject();
-                        noDataText.Name = "NoDataText";
-                        noDataText.Parent = dataBand;
-                        noDataText.Bounds = new RectangleF(0, 0, 680, 30);
-                        noDataText.Text = "BRAK DANYCH DO WYŚWIETLENIA";
-                        noDataText.Font = new Font("Arial", 12, FontStyle.Bold);
-                        noDataText.TextFill = new SolidFill(Color.Red);
-                        noDataText.HorzAlign = HorzAlign.Center;
-                    }
-                }
-
-                // Utwórz stopkę z numeracją stron
-                CreatePageFooter(report);
-
-                report.Prepare();
-
-                using var ms = new MemoryStream();
-                var pdf = new PDFSimpleExport();
-                report.Export(pdf, ms);
-                ms.Position = 0;
-
-                return File(ms.ToArray(), "application/pdf", "raport.pdf");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[ERROR] {ex.Message}\n{ex.StackTrace}");
-                return StatusCode(500, new { error = ex.Message, stack = ex.StackTrace });
+                var noDataText = new FastReport.TextObject();
+                noDataText.Name = "NoDataText";
+                noDataText.Parent = dataBand;
+                noDataText.Bounds = new RectangleF(0, 0, 680, 30);
+                noDataText.Text = "BRAK DANYCH DO WYŚWIETLENIA";
+                noDataText.Font = new Font("Arial", 12, FontStyle.Bold);
+                noDataText.TextFill = new SolidFill(Color.Red);
+                noDataText.HorzAlign = HorzAlign.Center;
             }
         }
+
+        CreatePageFooter(report);
+        report.Prepare();
+
+        using var ms = new MemoryStream();
+        var pdf = new PDFSimpleExport();
+        report.Export(pdf, ms);
+        ms.Position = 0;
+
+        return File(ms.ToArray(), "application/pdf", "raport.pdf");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[ERROR] {ex.Message}\n{ex.StackTrace}");
+        return StatusCode(500, new { error = ex.Message });
+    }
+}
 
         // =========================================================
         // METODY POMOCNICZE
@@ -158,70 +160,109 @@ namespace FastReportService.Controllers
             return table;
         }
         
-        private void BuildDynamicTable(Report report, DataTable data)
-        {
-            DataBand? dataBand = report.FindObject("ListBand") as DataBand;
-            if (dataBand == null) return;
+private void BuildDynamicTable(Report report, DataTable data)
+{
+    DataBand? dataBand = report.FindObject("ListBand") as DataBand;
+    if (dataBand == null) return;
 
-            // Utwórz tabelę z nagłówkiem i danymi
-            TableObject table = new TableObject();
-            table.Name = "DynamicTable";
-            table.Parent = dataBand;
-            table.Width = 680; // Dopasuj do szerokości szablonu
-            table.Height = 25 * (data.Rows.Count + 1); // Wysokość: nagłówek + wiersze danych
+    // Stylizacja kolorystyczna
+    Color headerBackColor = Color.FromArgb(41, 58, 74); // Ciemny granat
+    Color headerTextColor = Color.White;
+    Color rowAltColor = Color.FromArgb(240, 242, 245); // Jasny szary
+    Color borderColor = Color.FromArgb(200, 200, 200); // Delikatna ramka
+
+    TableObject table = new TableObject();
+    table.Name = "DynamicTable";
+    table.Parent = dataBand;
+    table.Width = 680; 
+    
+    // Obliczamy wysokość
+    float headerHeight = 35f; // Wyższy nagłówek
+    float rowHeight = 25f;    // Wiersze danych
+    table.Height = headerHeight + (data.Rows.Count * rowHeight);
+
+    table.ColumnCount = data.Columns.Count;
+    table.RowCount = data.Rows.Count + 1;
+
+    // Oblicz szerokości
+    float[] columnWidths = CalculateColumnWidths(data, 680);
+
+    for (int i = 0; i < data.Columns.Count; i++)
+    {
+        table.Columns[i].Width = columnWidths[i];
+
+        // ==========================
+        // STYL NAGŁÓWKA (HEADER)
+        // ==========================
+        TableCell headerCell = table[i, 0];
+        if (headerCell == null) { headerCell = new TableCell(); headerCell.Parent = table.Rows[0]; }
+        
+        // Ustawienie wysokości wiersza nagłówka
+        table.Rows[0].Height = headerHeight;
+
+        headerCell.Text = data.Columns[i].ColumnName.ToUpper();
+        headerCell.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+        headerCell.TextFill = new SolidFill(headerTextColor);
+        headerCell.Fill = new SolidFill(headerBackColor);
+        
+        // Ramki i wyrównanie
+        headerCell.Border.Lines = BorderLines.All;
+        headerCell.Border.Color = borderColor;
+        headerCell.HorzAlign = HorzAlign.Center;
+        headerCell.VertAlign = VertAlign.Center;
+        
+        // Padding (Odstępy wewnątrz komórki) - kluczowe dla estetyki!
+        headerCell.Padding = new Padding(5, 0, 5, 0);
+
+        // ==========================
+        // WIERSZE DANYCH (ROWS)
+        // ==========================
+        for (int row = 0; row < data.Rows.Count; row++)
+        {
+            TableCell dataCell = table[i, row + 1];
+            if (dataCell == null) { dataCell = new TableCell(); dataCell.Parent = table.Rows[row + 1]; }
+
+            // Ustawienie wysokości wiersza danych
+            table.Rows[row + 1].Height = rowHeight;
+
+            // Pobierz wartość
+            string cellValue = data.Rows[row][i].ToString();
+            dataCell.Text = cellValue;
             
-            table.ColumnCount = data.Columns.Count;
-            table.RowCount = data.Rows.Count + 1; // +1 dla nagłówka
+            // Czcionka
+            dataCell.Font = new Font("Segoe UI", 9, FontStyle.Regular);
+            dataCell.TextFill = new SolidFill(Color.Black);
+
+            // "Zebra" - co drugi wiersz inny kolor
+            if (row % 2 != 0)
+                dataCell.Fill = new SolidFill(rowAltColor);
+            else
+                dataCell.Fill = new SolidFill(Color.White);
+
+            // Ramki
+            dataCell.Border.Lines = BorderLines.Bottom | BorderLines.Right | BorderLines.Left;
+            dataCell.Border.Color = borderColor;
             
-            // Oblicz szerokości kolumn
-            float[] columnWidths = CalculateColumnWidths(data, 680);
-            for (int i = 0; i < data.Columns.Count; i++)
-            {
-                table.Columns[i].Width = columnWidths[i];
-                
-                // Nagłówek tabeli (wiersz 0)
-                TableCell headerCell = table[i, 0];
-                if (headerCell == null)
-                {
-                    headerCell = new TableCell();
-                    headerCell.Parent = table.Rows[0];
-                }
-                
-                string colName = data.Columns[i].ColumnName;
-                headerCell.Text = colName.ToUpper();
-                headerCell.Font = new Font("Arial", 10, FontStyle.Bold);
-                headerCell.TextFill = new SolidFill(Color.Black);
-                headerCell.Border.Lines = BorderLines.All;
-                headerCell.Border.Color = Color.Gray;
-                headerCell.Fill = new SolidFill(Color.LightGray);
-                headerCell.VertAlign = VertAlign.Center;
-                headerCell.HorzAlign = HorzAlign.Center;
-                // Usunięto Padding - może powodować problemy z kompilacją
-                
-                // Wiersze danych
-                for (int row = 0; row < data.Rows.Count; row++)
-                {
-                    TableCell dataCell = table[i, row + 1];
-                    if (dataCell == null)
-                    {
-                        dataCell = new TableCell();
-                        dataCell.Parent = table.Rows[row + 1];
-                    }
-                    
-                    dataCell.Text = $"[Dane.{colName}]";
-                    dataCell.Font = new Font("Arial", 9, FontStyle.Regular);
-                    dataCell.TextFill = new SolidFill(Color.Black);
-                    dataCell.Border.Lines = BorderLines.All;
-                    dataCell.Border.Color = Color.LightGray;
-                    dataCell.VertAlign = VertAlign.Center;
-                    dataCell.HorzAlign = HorzAlign.Left;
-                    // Usunięto Padding - może powodować problemy z kompilacją
-                }
-            }
-            
-            // Ustaw, aby nagłówek powtarzał się na każdej stronie
-            table.RepeatHeaders = true;
+            // Wyrównanie i Padding
+            dataCell.VertAlign = VertAlign.Center;
+            dataCell.Padding = new Padding(5, 0, 5, 0); // Lewy/Prawy margines w komórce
+
+            // Logika wyrównania zależna od treści
+            if (IsNumeric(cellValue) || data.Columns[i].ColumnName.ToLower().Contains("id"))
+                dataCell.HorzAlign = HorzAlign.Center;
+            else
+                dataCell.HorzAlign = HorzAlign.Left;
         }
+    }
+
+    table.RepeatHeaders = true;
+}
+
+// Pomocnicza metoda do sprawdzania czy tekst jest liczbą (do centrowania)
+private bool IsNumeric(string text)
+{
+    return double.TryParse(text, out _);
+}
 
         private float[] CalculateColumnWidths(DataTable data, float totalWidth)
         {
