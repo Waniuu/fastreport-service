@@ -196,7 +196,7 @@ namespace FastReportService.Controllers
                 headerCell.Fill = new SolidFill(Color.LightGray);
                 headerCell.VertAlign = VertAlign.Center;
                 headerCell.HorzAlign = HorzAlign.Center;
-                headerCell.Padding = new FastReport.Utils.Padding(3, 3, 3, 3); // Poprawione: wszystkie 4 wartości
+                // Usunięto Padding - może powodować problemy z kompilacją
                 
                 // Wiersze danych
                 for (int row = 0; row < data.Rows.Count; row++)
@@ -215,7 +215,7 @@ namespace FastReportService.Controllers
                     dataCell.Border.Color = Color.LightGray;
                     dataCell.VertAlign = VertAlign.Center;
                     dataCell.HorzAlign = HorzAlign.Left;
-                    dataCell.Padding = new FastReport.Utils.Padding(3, 3, 3, 3); // Poprawione: wszystkie 4 wartości
+                    // Usunięto Padding - może powodować problemy z kompilacją
                 }
             }
             
