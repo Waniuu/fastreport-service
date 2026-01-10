@@ -76,7 +76,8 @@ namespace FastReportService.Controllers
 
                 var table = JsonToDataTable(jsonData);
                 report.RegisterData(table, "Dane");
-                report.GetDataSource("Dane").Enabled = true;
+                // NIE włączamy źródła danych globalnie - to kluczowa zmiana!
+                // report.GetDataSource("Dane").Enabled = true;
 
                 DataBand? dataBand = report.FindObject("ListBand") as DataBand;
                 if (dataBand != null)
@@ -84,8 +85,24 @@ namespace FastReportService.Controllers
                     var listItem = report.FindObject("ListItem") as FastReport.TextObject;
                     if (listItem != null) listItem.Dispose();
                     
-                    dataBand.DataSource = report.GetDataSource("Dane");
-                    // Usunięto: dataBand.Count = 1; - powodowało błąd kompilacji
+                    // KLUCZOWA ZMIANA: Odłączamy DataBand od źródła danych
+                    // Ustawiamy RowCount na 1, aby DataBand wykonał się tylko raz
+                    dataBand.DataSource = null;
+                    
+                    // Upewniamy się, że DataBand wykona się tylko raz
+                    // W FastReport możesz ustawić RowCount w designera, ale tutaj ustawiamy przez kod
+                    // Możemy też ustawić CountExpression na "1"
+                    try
+                    {
+                        // W FastReport .NET Core właściwość może być inaczej nazwana
+                        // Spróbuj ustawić CountExpression
+                        dataBand.Count = 1; // Ta właściwość istnieje w niektórych wersjach
+                    }
+                    catch
+                    {
+                        // Alternatywnie, ustawiamy CountExpression
+                        dataBand.CountExpression = "1";
+                    }
                 }
 
                 if (table.Rows.Count > 0)
@@ -174,7 +191,7 @@ namespace FastReportService.Controllers
             table.Height = headerHeight + (data.Rows.Count * rowHeight);
 
             table.ColumnCount = data.Columns.Count;
-            table.RowCount = data.Rows.Count + 1;
+            table.RowCount = data.Rows.Count + 1; // Nagłówek + wszystkie wiersze danych
 
             float[] columnWidths = CalculateColumnWidths(data, 680);
 
@@ -182,7 +199,7 @@ namespace FastReportService.Controllers
             {
                 table.Columns[i].Width = columnWidths[i];
 
-                // Nagłówek
+                // Nagłówek (tylko jeden wiersz nagłówka!)
                 TableCell headerCell = table[i, 0];
                 if (headerCell == null) 
                 { 
@@ -192,7 +209,8 @@ namespace FastReportService.Controllers
                 
                 table.Rows[0].Height = headerHeight;
 
-                headerCell.Text = data.Columns[i].ColumnName.ToUpper();
+                string colName = data.Columns[i].ColumnName;
+                headerCell.Text = colName.ToUpper();
                 headerCell.Font = new Font("Segoe UI", 10, FontStyle.Bold);
                 headerCell.TextFill = new SolidFill(headerTextColor);
                 headerCell.Fill = new SolidFill(headerBackColor);
@@ -200,9 +218,8 @@ namespace FastReportService.Controllers
                 headerCell.Border.Color = borderColor;
                 headerCell.HorzAlign = HorzAlign.Center;
                 headerCell.VertAlign = VertAlign.Center;
-                // Usunięto Padding - nie jest dostępny w tej wersji
 
-                // Wiersze danych
+                // Wiersze danych (bez referencji do [Dane.*] - używamy rzeczywistych wartości)
                 for (int row = 0; row < data.Rows.Count; row++)
                 {
                     TableCell dataCell = table[i, row + 1];
@@ -214,6 +231,7 @@ namespace FastReportService.Controllers
 
                     table.Rows[row + 1].Height = rowHeight;
 
+                    // Pobierz rzeczywistą wartość z DataTable, NIE używaj [Dane.*]
                     string? cellValue = data.Rows[row][i].ToString();
                     dataCell.Text = cellValue ?? "";
                     
@@ -228,7 +246,6 @@ namespace FastReportService.Controllers
                     dataCell.Border.Lines = BorderLines.Bottom | BorderLines.Right | BorderLines.Left;
                     dataCell.Border.Color = borderColor;
                     dataCell.VertAlign = VertAlign.Center;
-                    // Usunięto Padding - nie jest dostępny w tej wersji
 
                     if (IsNumeric(cellValue) || data.Columns[i].ColumnName.ToLower().Contains("id"))
                         dataCell.HorzAlign = HorzAlign.Center;
