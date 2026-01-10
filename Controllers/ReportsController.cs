@@ -45,77 +45,58 @@ namespace FastReportService.Controllers
         }
 
         // =========================================================
-        // LOGIKA GENEROWANIA "PIĘKNEGO" RAPORTU (Code-First)
+        // LOGIKA GENEROWANIA - STYL "EXCEL" + RÓŻOWY NAGŁÓWEK
         // =========================================================
         private IActionResult GenerateBeautifulReport(List<Dictionary<string, object>> jsonData, string reportTitle)
         {
             try
             {
-                // 1. Konwersja JSON -> DataTable
                 DataTable table = JsonToDataTable(jsonData);
                 table.TableName = "Dane";
 
-                // 2. Tworzymy pusty raport
                 Report report = new Report();
                 report.RegisterData(table, "Dane");
                 report.GetDataSource("Dane").Enabled = true;
 
-                // 3. STRONA
                 ReportPage page = new ReportPage();
                 page.Name = "Page1";
+                // Marginesy
                 page.LeftMargin = 10; 
                 page.RightMargin = 10;
                 page.TopMargin = 10;
-                page.BottomMargin = 10;
                 report.Pages.Add(page);
 
-                // --------------------------------------------------------
-                // A. NAGŁÓWEK RAPORTU (Różowy pasek)
-                // --------------------------------------------------------
+                // --- 1. NAGŁÓWEK STRONY (Różowy pasek) ---
                 ReportTitleBand titleBand = new ReportTitleBand();
-                titleBand.Name = "ReportTitle";
-                titleBand.Height = Units.Centimeters * 3.0f;
+                titleBand.Height = Units.Centimeters * 2.5f;
                 page.ReportTitle = titleBand;
 
-                // Różowe tło
-                ShapeObject headerBg = new ShapeObject();
+                // Tło nagłówka (jako duży tekst bez treści, ale z tłem)
+                TextObject headerBg = new TextObject();
                 headerBg.Parent = titleBand;
                 headerBg.Bounds = new RectangleF(0, 0, page.Width, Units.Centimeters * 2.0f);
-                headerBg.Fill = new SolidFill(Color.FromArgb(255, 51, 102));
-                
-                // --- POPRAWKA TUTAJ (Shape zamiast ShapeKind) ---
-                headerBg.Shape = ShapeKind.Rectangle; 
-                // ------------------------------------------------
-                
-                headerBg.Border.Lines = BorderLines.None;
+                headerBg.Fill = new SolidFill(Color.FromArgb(255, 51, 102)); // Różowy #ff3366
+                headerBg.Text = ""; 
 
-                // Główny tytuł
-                TextObject sysTitle = new TextObject();
-                sysTitle.Parent = titleBand;
-                sysTitle.Bounds = new RectangleF(Units.Centimeters * 0.5f, Units.Centimeters * 0.2f, page.Width, Units.Centimeters * 1.0f);
-                sysTitle.Text = "System Generowania Testów";
-                sysTitle.Font = new Font("Arial", 18, FontStyle.Bold);
-                sysTitle.TextColor = Color.White;
+                // Tytuł Główny
+                TextObject mainTitle = new TextObject();
+                mainTitle.Parent = titleBand;
+                mainTitle.Bounds = new RectangleF(10, 10, page.Width - 20, 30);
+                mainTitle.Text = "System Generowania Testów";
+                mainTitle.Font = new Font("Arial", 18, FontStyle.Bold);
+                mainTitle.TextColor = Color.White;
+                mainTitle.Fill = new SolidFill(Color.Transparent);
 
-                // Data
-                TextObject dateTxt = new TextObject();
-                dateTxt.Parent = titleBand;
-                dateTxt.Bounds = new RectangleF(Units.Centimeters * 0.5f, Units.Centimeters * 1.2f, page.Width, Units.Centimeters * 0.5f);
-                dateTxt.Text = "Wygenerowano: " + System.DateTime.Now.ToString("yyyy-MM-dd HH:mm");
-                dateTxt.Font = new Font("Arial", 10, FontStyle.Regular);
-                dateTxt.TextColor = Color.White;
-
-                // Tytuł konkretnego raportu
+                // Data i nazwa raportu
                 TextObject subTitle = new TextObject();
                 subTitle.Parent = titleBand;
-                subTitle.Bounds = new RectangleF(0, Units.Centimeters * 2.2f, page.Width, Units.Centimeters * 0.8f);
-                subTitle.Text = reportTitle;
-                subTitle.Font = new Font("Arial", 14, FontStyle.Bold);
-                subTitle.TextColor = Color.Black;
+                subTitle.Bounds = new RectangleF(10, 45, page.Width - 20, 20);
+                subTitle.Text = $"{reportTitle} | Data: {System.DateTime.Now:yyyy-MM-dd HH:mm}";
+                subTitle.Font = new Font("Arial", 11, FontStyle.Regular);
+                subTitle.TextColor = Color.White;
+                subTitle.Fill = new SolidFill(Color.Transparent);
 
-                // --------------------------------------------------------
-                // B. NAGŁÓWEK TABELI
-                // --------------------------------------------------------
+                // --- 2. NAGŁÓWKI TABELI (Ciemnoszare) ---
                 PageHeaderBand headerBand = new PageHeaderBand();
                 headerBand.Height = Units.Centimeters * 0.8f;
                 page.PageHeader = headerBand;
@@ -128,21 +109,19 @@ namespace FastReportService.Controllers
                     TextObject cell = new TextObject();
                     cell.Parent = headerBand;
                     cell.Bounds = new RectangleF(currentX, 0, colWidth, headerBand.Height);
-                    cell.Text = col.ColumnName;
+                    cell.Text = col.ColumnName.ToUpper();
                     cell.Font = new Font("Arial", 10, FontStyle.Bold);
-                    cell.Fill = new SolidFill(Color.FromArgb(40, 40, 40));
+                    cell.Fill = new SolidFill(Color.FromArgb(50, 50, 50)); // Ciemne tło
                     cell.TextColor = Color.White;
                     cell.HorzAlign = HorzAlign.Center;
                     cell.VertAlign = VertAlign.Center;
-                    cell.Border.Lines = BorderLines.All;
-                    cell.Border.Color = Color.Gray;
+                    cell.Border.Lines = BorderLines.All; // Ramka
+                    cell.Border.Color = Color.White;
                     
                     currentX += colWidth;
                 }
 
-                // --------------------------------------------------------
-                // C. DANE
-                // --------------------------------------------------------
+                // --- 3. DANE (Białe z kratką) ---
                 DataBand dataBand = new DataBand();
                 dataBand.Height = Units.Centimeters * 0.8f;
                 dataBand.DataSource = report.GetDataSource("Dane");
@@ -154,25 +133,24 @@ namespace FastReportService.Controllers
                     TextObject cell = new TextObject();
                     cell.Parent = dataBand;
                     cell.Bounds = new RectangleF(currentX, 0, colWidth, dataBand.Height);
-                    cell.Text = "[Dane." + col.ColumnName + "]"; 
+                    cell.Text = "[Dane." + col.ColumnName + "]";
                     cell.Font = new Font("Arial", 10, FontStyle.Regular);
                     cell.VertAlign = VertAlign.Center;
+                    cell.HorzAlign = HorzAlign.Center;
                     
-                    // Kratka Excelowa
+                    // TO TWORZY EFEKT EXCELA (Kratka)
                     cell.Border.Lines = BorderLines.All;
-                    cell.Border.Color = Color.LightGray;
-
-                    if (IsNumeric(col.DataType))
-                        cell.HorzAlign = HorzAlign.Right;
+                    cell.Border.Color = Color.Black; 
                     
                     currentX += colWidth;
                 }
 
-                // 4. Generowanie PDF
+                // --- 4. Generowanie ---
                 report.Prepare();
                 
                 using (MemoryStream ms = new MemoryStream())
                 {
+                    // Używamy PDFSimpleExport - jest szybszy i mniej awaryjny na Linuxie
                     PDFSimpleExport export = new PDFSimpleExport();
                     export.Export(report, ms);
                     return File(ms.ToArray(), "application/pdf", "raport.pdf");
@@ -180,7 +158,8 @@ namespace FastReportService.Controllers
             }
             catch (System.Exception ex)
             {
-                return StatusCode(500, $"Błąd generowania PDF: {ex.Message} \n {ex.StackTrace}");
+                // Zwracamy błąd JSON, żeby frontend wiedział co się stało
+                return StatusCode(500, new { error = "Błąd C#", details = ex.Message });
             }
         }
 
@@ -188,45 +167,14 @@ namespace FastReportService.Controllers
         {
             DataTable dt = new DataTable();
             if (list == null || list.Count == 0) return dt;
-
-            foreach (var key in list[0].Keys)
-            {
-                dt.Columns.Add(key);
-            }
-
+            foreach (var key in list[0].Keys) dt.Columns.Add(key);
             foreach (var item in list)
             {
                 DataRow row = dt.NewRow();
-                foreach (var key in item.Keys)
-                {
-                    var val = item[key];
-                    row[key] = val?.ToString() ?? "";
-                }
+                foreach (var key in item.Keys) row[key] = item[key]?.ToString() ?? "";
                 dt.Rows.Add(row);
             }
             return dt;
-        }
-
-        private bool IsNumeric(System.Type type)
-        {
-            if (type == null) return false;
-            switch (System.Type.GetTypeCode(type))
-            {
-                case System.TypeCode.Byte:
-                case System.TypeCode.SByte:
-                case System.TypeCode.UInt16:
-                case System.TypeCode.UInt32:
-                case System.TypeCode.UInt64:
-                case System.TypeCode.Int16:
-                case System.TypeCode.Int32:
-                case System.TypeCode.Int64:
-                case System.TypeCode.Decimal:
-                case System.TypeCode.Double:
-                case System.TypeCode.Single:
-                    return true;
-                default:
-                    return false;
-            }
         }
     }
 }
