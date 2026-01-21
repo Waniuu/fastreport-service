@@ -65,7 +65,7 @@ namespace FastReportService.Controllers
                 DataBand? dataBand = report.FindObject("ListBand") as DataBand;
                 if (dataBand != null)
                 {
-                    BuildTableForQuestionsBank(dataBand, table);
+                    BuildTableForQuestionsBank(dataBand, table, report); // DODANY PARAMETR report
                 }
 
                 CreatePageFooter(report);
@@ -128,7 +128,7 @@ namespace FastReportService.Controllers
             return table;
         }
 
-        private void BuildTableForQuestionsBank(DataBand dataBand, DataTable data)
+        private void BuildTableForQuestionsBank(DataBand dataBand, DataTable data, Report report) // DODANY PARAMETR Report
         {
             // Usuń istniejący obiekt ListItem jeśli istnieje
             var listItem = report.FindObject("ListItem") as FastReport.TextObject;
@@ -199,7 +199,7 @@ namespace FastReportService.Controllers
         }
 
         // =========================================================
-        // METODY POMOCNICZE (pozostałe bez zmian)
+        // METODY POMOCNICZE
         // =========================================================
 
         private DataTable JsonToDataTable(List<Dictionary<string, object>> list)
@@ -244,7 +244,11 @@ namespace FastReportService.Controllers
             foreach (var objName in objectsToHide)
             {
                 var obj = report.FindObject(objName);
-                if (obj != null) obj.Visible = false;
+                // SPRAWDŹ TYP I USTAW VISIBLE TYLKO JEŚLI MOŻLIWE
+                if (obj is FastReport.ShapeObject shapeObj)
+                    shapeObj.Visible = false;
+                else if (obj is FastReport.TextObject textObj)
+                    textObj.Visible = false;
             }
         }
 
