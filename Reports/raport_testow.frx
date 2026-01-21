@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Report ScriptLanguage="CSharp" TextQuality="Regular">
-  <ReportPage Name="Page1" PaperWidth="210" PaperHeight="297" TopMargin="20" BottomMargin="20" LeftMargin="20" RightMargin="20">
+  <ReportPage Name="Page1" PaperWidth="210" PaperHeight="297">
     
     <!-- Nagłówek systemu -->
     <TextObject Name="SystemHeader" 
@@ -13,7 +13,7 @@
 
     <!-- Tytuł główny -->
     <TextObject Name="Title" 
-                Left="0" Top="45" Width="680" Height="30"
+                Left="0" Top="45" Width="720" Height="30"
                 Font="Arial, 16pt, Bold"
                 HorzAlign="Center"
                 TextFill.Color="Black"
@@ -21,27 +21,53 @@
 
     <!-- Informacja o dacie generowania -->
     <TextObject Name="Panel1Header"
-                Left="0" Top="85" Width="680" Height="20"
+                Left="20" Top="85" Width="680" Height="20"
                 Text="Raport wygenerowany: [Date]"
                 Font="Arial, 10pt, Regular"
-                TextFill.Color="Black"
-                HorzAlign="Center"/>
+                TextFill.Color="Black"/>
 
     <!-- Podtytuł -->
     <TextObject Name="Panel1Body"
-                Left="0" Top="110" Width="680" Height="25"
+                Left="20" Top="110" Width="680" Height="25"
                 Text="Podtytuł raportu"
                 Font="Arial, 12pt, Bold"
-                HorzAlign="Center"
                 TextFill.Color="Black"/>
 
-    <!-- Tabela danych -->
-    <DataBand Name="ListBand" Top="150" Height="25">
+    <!-- Sekcja 2 (nieużywana, ukryta) -->
+    <ShapeObject Name="Panel2" 
+                 Left="20" Top="320" Width="680" Height="90"
+                 Fill.Color="#1A1A1A" Fill.Blend="0.35"
+                 Visible="False"/>
+
+    <TextObject Name="Panel2Header"
+                Left="30" Top="330" Width="300" Height="20"
+                Text="Nagłówek sekcji 2"
+                Font="Montserrat, 12pt, Bold"
+                TextFill.Color="#FF3366"
+                Visible="False"/>
+
+    <TextObject Name="Panel2Body"
+                Left="30" Top="360" Width="650" Height="40"
+                Text="Treść sekcji 2..."
+                Font="Montserrat, 10pt"
+                TextFill.Color="White"
+                Visible="False"/>
+
+    <!-- Lista elementów -->
+    <TextObject Name="ListHeader" 
+                Left="20" Top="430" Width="680" Height="25"
+                Text="Lista elementów:"
+                Font="Montserrat, 14pt, Bold"
+                TextFill.Color="#FF3366"
+                Visible="False"/>
+
+    <!-- Dane tabeli -->
+    <DataBand Name="ListBand" Top="170" Height="30">
       <TextObject Name="ListItem"
-                  Left="0" Top="0" Width="650" Height="20"
-                  Text="• [Tresc_Pytania]"
-                  Font="Arial, 9pt"
-                  TextFill.Color="Black"/>
+                  Left="30" Top="5" Width="650" Height="20"
+                  Text="• Element listy (wstaw tu pole danych)"
+                  Font="Montserrat, 10pt"
+                  TextFill.Color="White"/>
     </DataBand>
 
   </ReportPage>
