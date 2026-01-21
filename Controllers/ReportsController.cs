@@ -166,22 +166,19 @@ namespace FastReportService.Controllers
             return table;
         }
 
-        private void BuildTableForQuestionsBank(DataBand dataBand, DataTable data, Report report)
-        {
-            // Usuń istniejący obiekt ListItem jeśli istnieje
-            var listItem = report.FindObject("ListItem") as FastReport.TextObject;
-            if (listItem != null) listItem.Dispose();
+      private void BuildTableForQuestionsBank(DataBand dataBand, DataTable data, Report report)
+{
+    var listItem = report.FindObject("ListItem") as FastReport.TextObject;
+    if (listItem != null) listItem.Dispose();
+    
+    dataBand.Visible = false;
 
-            // Ukryj DataBand i utwórz tabelę statycznie
-            dataBand.Visible = false;
-
-            // Tworzenie tabeli dynamicznej
-            TableObject table = new TableObject();
-            table.Name = "DynamicTable";
-            table.Parent = dataBand.Parent; // Dodaj bezpośrednio na stronę
-            table.Left = 0;
-            table.Top = 400; // Poniżej wykresów
-            table.Width = 680;
+    TableObject table = new TableObject();
+    table.Name = "DynamicTable";
+    table.Parent = dataBand.Parent;
+    table.Left = 0;
+    table.Top = 150; // Poniżej nagłówków
+    table.Width = 680;
             
             float headerHeight = 35f;
             float rowHeight = 25f;
