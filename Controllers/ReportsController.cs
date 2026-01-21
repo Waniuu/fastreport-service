@@ -6,8 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 using System.Data;
 using System.Drawing;
 using System.IO;
-using System.Linq;
+using System.Text.Json;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace FastReportService.Controllers
 {
@@ -60,19 +61,8 @@ namespace FastReportService.Controllers
             {
                 var report = new Report();
                 
-                // ZAWSZE używaj bezwzględnej ścieżki w Dockerze
-                string reportPath = Path.Combine(Directory.GetCurrentDirectory(), "Reports", "raport_testow.frx");
-                
-                if (!System.IO.File.Exists(reportPath))
-                {
-                    // Fallback dla developmentu
-                    reportPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Reports", "raport_testow.frx");
-                }
-                
-                if (!System.IO.File.Exists(reportPath))
-                {
-                    return StatusCode(500, new { error = "Nie znaleziono szablonu raportu: " + reportPath });
-                }
+                string reportPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Reports", "raport_testow.frx");
+                if (!System.IO.File.Exists(reportPath)) reportPath = "Reports/raport_testow.frx";
                 
                 report.Load(reportPath);
                 
@@ -86,24 +76,40 @@ namespace FastReportService.Controllers
 
                 var table = JsonToDataTable(jsonData);
                 report.RegisterData(table, "Dane");
+                
+                // KLUCZOWA ZMIANA: Nie używamy DataSource dla DataBand
+                // Zamiast tego tworzymy tabelę w DataBand, ale tylko raz
 
-                // PRZYGO TUJ DANE DLA WYKRESÓW
-                if (title == "BANK PYTAŃ" && jsonData.Any())
-                {
-                    // Dane dla wykresu kategorii
-                    var categoryData = PrepareChartDataCategory(jsonData);
-                    report.RegisterData(categoryData, "ChartData_Category");
-                    
-                    // Dane dla wykresu poziomu trudności
-                    var levelData = PrepareChartDataLevel(jsonData);
-                    report.RegisterData(levelData, "ChartData_Level");
-                }
-
-                // Przygotuj tabelę z danymi
                 DataBand? dataBand = report.FindObject("ListBand") as DataBand;
                 if (dataBand != null)
                 {
-                    BuildTableForQuestionsBank(dataBand, table, report); // DODANY PARAMETR report
+                    var listItem = report.FindObject("ListItem") as FastReport.TextObject;
+                    if (listItem != null) listItem.Dispose();
+                    
+                    // Odłączamy DataBand od danych i ustawiamy, żeby wykonał się tylko raz
+                    dataBand.DataSource = null;
+                    
+                    // W FastReport .NET Core, aby DataBand wykonał się tylko raz,
+                    // możemy ustawić jego właściwość RowCount na 1 (jeśli istnieje)
+                    // Lub użyć innego podejścia: ustawiamy DataBand.Visible = false
+                    // i tworzymy tabelę bezpośrednio na stronie
+                    
+                    if (table.Rows.Count > 0)
+                    {
+                        // Tworzymy tabelę w DataBand (który wykona się tylko raz)
+                        BuildTableInDataBand(dataBand, table);
+                    }
+                    else
+                    {
+                        var noDataText = new FastReport.TextObject();
+                        noDataText.Name = "NoDataText";
+                        noDataText.Parent = dataBand;
+                        noDataText.Bounds = new RectangleF(0, 0, 680, 30);
+                        noDataText.Text = "BRAK DANYCH DO WYŚWIETLENIA";
+                        noDataText.Font = new Font("Arial", 12, FontStyle.Bold);
+                        noDataText.TextFill = new SolidFill(Color.Red);
+                        noDataText.HorzAlign = HorzAlign.Center;
+                    }
                 }
 
                 CreatePageFooter(report);
@@ -120,117 +126,8 @@ namespace FastReportService.Controllers
             catch (Exception ex)
             {
                 Console.WriteLine($"[ERROR] {ex.Message}\n{ex.StackTrace}");
-                return StatusCode(500, new { error = ex.Message, details = ex.StackTrace });
+                return StatusCode(500, new { error = ex.Message });
             }
-        }
-
-        // =========================================================
-        // NOWE METODY DLA WYKRESÓW
-        // =========================================================
-
-        private DataTable PrepareChartDataCategory(List<Dictionary<string, object>> jsonData)
-        {
-            var grouped = jsonData
-                .GroupBy(d => d.ContainsKey("Kategoria") ? d["Kategoria"]?.ToString() ?? "Nieokreślona" : "Nieokreślona")
-                .Select(g => new { Kategoria = g.Key, Ilosc = g.Count() })
-                .ToList();
-
-            DataTable table = new DataTable("ChartData_Category");
-            table.Columns.Add("Kategoria", typeof(string));
-            table.Columns.Add("Ilosc", typeof(int));
-
-            foreach (var item in grouped)
-            {
-                table.Rows.Add(item.Kategoria, item.Ilosc);
-            }
-
-            return table;
-        }
-
-        private DataTable PrepareChartDataLevel(List<Dictionary<string, object>> jsonData)
-        {
-            var grouped = jsonData
-                .GroupBy(d => d.ContainsKey("Poziom") ? d["Poziom"]?.ToString() ?? "Nieokreślony" : "Nieokreślony")
-                .Select(g => new { Poziom = g.Key, Ilosc = g.Count() })
-                .ToList();
-
-            DataTable table = new DataTable("ChartData_Level");
-            table.Columns.Add("Poziom", typeof(string));
-            table.Columns.Add("Ilosc", typeof(int));
-
-            foreach (var item in grouped)
-            {
-                table.Rows.Add(item.Poziom, item.Ilosc);
-            }
-
-            return table;
-        }
-
-      private void BuildTableForQuestionsBank(DataBand dataBand, DataTable data, Report report)
-{
-    var listItem = report.FindObject("ListItem") as FastReport.TextObject;
-    if (listItem != null) listItem.Dispose();
-    
-    dataBand.Visible = false;
-
-    TableObject table = new TableObject();
-    table.Name = "DynamicTable";
-    table.Parent = dataBand.Parent;
-    table.Left = 0;
-    table.Top = 150; // Poniżej nagłówków
-    table.Width = 680;
-            
-            float headerHeight = 35f;
-            float rowHeight = 25f;
-            table.Height = headerHeight + (data.Rows.Count * rowHeight);
-
-            table.ColumnCount = data.Columns.Count;
-            table.RowCount = data.Rows.Count + 1;
-
-            // Stylizacja
-            Color headerBackColor = Color.FromArgb(41, 58, 74);
-            Color headerTextColor = Color.White;
-            Color rowAltColor = Color.FromArgb(240, 242, 245);
-            Color borderColor = Color.FromArgb(200, 200, 200);
-
-            for (int i = 0; i < data.Columns.Count; i++)
-            {
-                table.Columns[i].Width = 680 / data.Columns.Count;
-
-                // Nagłówek
-                TableCell headerCell = table[i, 0];
-                headerCell.Text = data.Columns[i].ColumnName.ToUpper();
-                headerCell.Font = new Font("Arial", 10, FontStyle.Bold);
-                headerCell.TextFill = new SolidFill(headerTextColor);
-                headerCell.Fill = new SolidFill(headerBackColor);
-                headerCell.Border.Lines = BorderLines.All;
-                headerCell.Border.Color = borderColor;
-                headerCell.HorzAlign = HorzAlign.Center;
-                headerCell.VertAlign = VertAlign.Center;
-
-                // Wiersze danych
-                for (int row = 0; row < data.Rows.Count; row++)
-                {
-                    TableCell dataCell = table[i, row + 1];
-                    string cellValue = data.Rows[row][i]?.ToString() ?? "";
-                    dataCell.Text = cellValue;
-                    
-                    dataCell.Font = new Font("Arial", 9, FontStyle.Regular);
-                    dataCell.TextFill = new SolidFill(Color.Black);
-
-                    if (row % 2 != 0)
-                        dataCell.Fill = new SolidFill(rowAltColor);
-                    else
-                        dataCell.Fill = new SolidFill(Color.White);
-
-                    dataCell.Border.Lines = BorderLines.Bottom | BorderLines.Right | BorderLines.Left;
-                    dataCell.Border.Color = borderColor;
-                    dataCell.VertAlign = VertAlign.Center;
-                    dataCell.HorzAlign = HorzAlign.Left;
-                }
-            }
-
-            table.RepeatHeaders = true;
         }
 
         // =========================================================
@@ -253,38 +150,186 @@ namespace FastReportService.Controllers
                 int colIndex = 0;
                 foreach (var key in item.Keys)
                 {
-                    row[colIndex] = item[key]?.ToString() ?? "";
+                    object val = item[key];
+                    row[colIndex] = val?.ToString() ?? "";
                     colIndex++;
                 }
                 table.Rows.Add(row);
             }
             return table;
         }
+        
+        private void BuildTableInDataBand(DataBand dataBand, DataTable data)
+        {
+            Color headerBackColor = Color.FromArgb(41, 58, 74);
+            Color headerTextColor = Color.White;
+            Color rowAltColor = Color.FromArgb(240, 242, 245);
+            Color borderColor = Color.FromArgb(200, 200, 200);
+
+            TableObject table = new TableObject();
+            table.Name = "DynamicTable";
+            table.Parent = dataBand;
+            table.Left = 0;
+            table.Top = 0;
+            table.Width = 680;
+            
+            float headerHeight = 35f;
+            float rowHeight = 25f;
+            table.Height = headerHeight + (data.Rows.Count * rowHeight);
+
+            table.ColumnCount = data.Columns.Count;
+            table.RowCount = data.Rows.Count + 1;
+
+            float[] columnWidths = CalculateColumnWidths(data, 680);
+
+            for (int i = 0; i < data.Columns.Count; i++)
+            {
+                table.Columns[i].Width = columnWidths[i];
+
+                // Nagłówek
+                TableCell headerCell = table[i, 0];
+                if (headerCell == null) 
+                { 
+                    headerCell = new TableCell(); 
+                    headerCell.Parent = table.Rows[0]; 
+                }
+                
+                table.Rows[0].Height = headerHeight;
+
+                string colName = data.Columns[i].ColumnName;
+                headerCell.Text = colName.ToUpper();
+                headerCell.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+                headerCell.TextFill = new SolidFill(headerTextColor);
+                headerCell.Fill = new SolidFill(headerBackColor);
+                headerCell.Border.Lines = BorderLines.All;
+                headerCell.Border.Color = borderColor;
+                headerCell.HorzAlign = HorzAlign.Center;
+                headerCell.VertAlign = VertAlign.Center;
+
+                // Wiersze danych
+                for (int row = 0; row < data.Rows.Count; row++)
+                {
+                    TableCell dataCell = table[i, row + 1];
+                    if (dataCell == null) 
+                    { 
+                        dataCell = new TableCell(); 
+                        dataCell.Parent = table.Rows[row + 1]; 
+                    }
+
+                    table.Rows[row + 1].Height = rowHeight;
+
+                    string? cellValue = data.Rows[row][i].ToString();
+                    dataCell.Text = cellValue ?? "";
+                    
+                    dataCell.Font = new Font("Segoe UI", 9, FontStyle.Regular);
+                    dataCell.TextFill = new SolidFill(Color.Black);
+
+                    if (row % 2 != 0)
+                        dataCell.Fill = new SolidFill(rowAltColor);
+                    else
+                        dataCell.Fill = new SolidFill(Color.White);
+
+                    dataCell.Border.Lines = BorderLines.Bottom | BorderLines.Right | BorderLines.Left;
+                    dataCell.Border.Color = borderColor;
+                    dataCell.VertAlign = VertAlign.Center;
+
+                    if (IsNumeric(cellValue) || data.Columns[i].ColumnName.ToLower().Contains("id"))
+                        dataCell.HorzAlign = HorzAlign.Center;
+                    else
+                        dataCell.HorzAlign = HorzAlign.Left;
+                }
+            }
+
+            table.RepeatHeaders = true;
+        }
+
+        private bool IsNumeric(string? text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return false;
+                
+            return double.TryParse(text, out _);
+        }
+
+        private float[] CalculateColumnWidths(DataTable data, float totalWidth)
+        {
+            float[] widths = new float[data.Columns.Count];
+            
+            Dictionary<string, float> columnRatios = new Dictionary<string, float>
+            {
+                { "lp", 0.5f },
+                { "id", 0.7f },
+                { "l.p", 0.5f },
+                { "numer", 0.5f },
+                { "imie", 1.2f },
+                { "nazwisko", 1.5f },
+                { "email", 2.0f },
+                { "status", 1.0f },
+                { "wynik", 1.0f },
+                { "data", 1.2f },
+                { "ocena", 0.8f }
+            };
+            
+            float totalRatio = 0;
+            for (int i = 0; i < data.Columns.Count; i++)
+            {
+                string colName = data.Columns[i].ColumnName.ToLower();
+                float ratio = 1.0f;
+                
+                foreach (var key in columnRatios.Keys)
+                {
+                    if (colName.Contains(key))
+                    {
+                        ratio = columnRatios[key];
+                        break;
+                    }
+                }
+                
+                widths[i] = ratio;
+                totalRatio += ratio;
+            }
+            
+            for (int i = 0; i < widths.Length; i++)
+            {
+                widths[i] = (widths[i] / totalRatio) * totalWidth;
+            }
+            
+            return widths;
+        }
 
         private void FixReportVisuals(Report report)
         {
+            string fontName = "Arial";
             foreach (Base obj in report.AllObjects)
             {
                 if (obj is FastReport.TextObject textObj)
                 {
-                    textObj.Font = new Font("Arial", textObj.Font.Size, textObj.Font.Style);
+                    textObj.Font = new Font(fontName, textObj.Font.Size, textObj.Font.Style);
                     textObj.TextFill = new SolidFill(Color.Black);
+                }
+                if (obj is FastReport.ShapeObject shapeObj) 
+                    shapeObj.Fill = new SolidFill(Color.Transparent);
+                    
+                if (obj is FastReport.PictureObject pictureObj && pictureObj.Name == "HeaderImage")
+                {
+                    pictureObj.Visible = false;
                 }
             }
         }
 
         private void HideUnusedObjects(Report report)
         {
-            var objectsToHide = new[] { "Panel2", "Panel2Header", "Panel2Body", "ListHeader" };
-            foreach (var objName in objectsToHide)
-            {
-                var obj = report.FindObject(objName);
-                // SPRAWDŹ TYP I USTAW VISIBLE TYLKO JEŚLI MOŻLIWE
-                if (obj is FastReport.ShapeObject shapeObj)
-                    shapeObj.Visible = false;
-                else if (obj is FastReport.TextObject textObj)
-                    textObj.Visible = false;
-            }
+            var panel2 = report.FindObject("Panel2") as FastReport.ShapeObject;
+            if (panel2 != null) panel2.Visible = false;
+            
+            var panel2Header = report.FindObject("Panel2Header") as FastReport.TextObject;
+            if (panel2Header != null) panel2Header.Visible = false;
+            
+            var panel2Body = report.FindObject("Panel2Body") as FastReport.TextObject;
+            if (panel2Body != null) panel2Body.Visible = false;
+            
+            var listHeader = report.FindObject("ListHeader") as FastReport.TextObject;
+            if (listHeader != null) listHeader.Visible = false;
         }
 
         private void CreatePageFooter(Report report)
@@ -292,6 +337,7 @@ namespace FastReportService.Controllers
             var page = report.Pages[0] as ReportPage;
             if (page == null) return;
 
+            // Sprawdź, czy stopka już istnieje
             var existingFooter = report.FindObject("PageFooter") as FastReport.TextObject;
             if (existingFooter != null) return;
 
@@ -312,6 +358,25 @@ namespace FastReportService.Controllers
             if (obj != null) 
             {
                 obj.Text = text;
+                
+                if (objectName == "Title")
+                {
+                    obj.Font = new Font("Arial", 16, FontStyle.Bold);
+                    obj.HorzAlign = HorzAlign.Center;
+                    obj.TextFill = new SolidFill(Color.Black);
+                }
+                
+                if (objectName == "Panel1Header")
+                {
+                    obj.Font = new Font("Arial", 10, FontStyle.Regular);
+                    obj.HorzAlign = HorzAlign.Left;
+                }
+                
+                if (objectName == "Panel1Body")
+                {
+                    obj.Font = new Font("Arial", 12, FontStyle.Bold);
+                    obj.HorzAlign = HorzAlign.Left;
+                }
             }
         }
     }
