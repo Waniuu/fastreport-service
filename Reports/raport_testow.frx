@@ -35,27 +35,8 @@
                 HorzAlign="Center"
                 TextFill.Color="Black"/>
 
-    <!-- Wykres: Rozkład pytań według kategorii -->
-    <ChartObject Name="ChartCategory" Left="20" Top="150" Width="320" Height="200" Border.Lines="All" Border.Color="Silver">
-      <Series>
-        <Series ChartType="Pie" Name="SeriesCategory" ArgumentDataColumn="Kategoria" ValueDataColumn="Ilosc" ColorEach="true"/>
-      </Series>
-      <Title Text="Rozkład pytań według kategorii" Font="Arial, 10pt, Bold" Alignment="TopCenter"/>
-      <Legend Alignment="TopRight" Visible="true"/>
-    </ChartObject>
-
-    <!-- Wykres: Rozkład pytań według poziomu trudności -->
-    <ChartObject Name="ChartLevel" Left="360" Top="150" Width="300" Height="200" Border.Lines="All" Border.Color="Silver">
-      <Series>
-        <Series ChartType="Bar" Name="SeriesLevel" ArgumentDataColumn="Poziom" ValueDataColumn="Ilosc" ColorEach="true"/>
-      </Series>
-      <Title Text="Rozkład pytań według poziomu" Font="Arial, 10pt, Bold" Alignment="TopCenter"/>
-      <AxisX Title="Poziom trudności"/>
-      <AxisY Title="Liczba pytań"/>
-    </ChartObject>
-
     <!-- Tabela danych -->
-    <DataBand Name="ListBand" Top="370" Height="25">
+    <DataBand Name="ListBand" Top="150" Height="25">
       <TextObject Name="ListItem"
                   Left="0" Top="0" Width="650" Height="20"
                   Text="• [Tresc_Pytania]"
