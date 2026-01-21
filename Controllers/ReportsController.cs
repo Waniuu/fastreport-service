@@ -15,12 +15,39 @@ namespace FastReportService.Controllers
     [Route("reports")]
     public class ReportsController : ControllerBase
     {
-        // ... pozostałe endpointy (questions-stats, users, itd.)
+        // =========================================================
+        // ENDPOINTY
+        // =========================================================
+        
+        [HttpPost("questions-stats")]
+        public IActionResult GenerateStats([FromBody] List<Dictionary<string, object>> data)
+        {
+            return GeneratePdfFromData(data, "RAPORT STATYSTYK", "Dane wygenerowane z bazy");
+        }
+
+        [HttpPost("users")] 
+        [HttpPost("students-list")]
+        public IActionResult GenerateUsers([FromBody] List<Dictionary<string, object>> data)
+        {
+            return GeneratePdfFromData(data, "Lista Studentów", "Aktualny wykaz osób w systemie");
+        }
+
+        [HttpPost("exam-results")]
+        public IActionResult GenerateExam([FromBody] List<Dictionary<string, object>> data)
+        {
+            return GeneratePdfFromData(data, "WYNIKI EGZAMINU", "Protokół wyników testu");
+        }
 
         [HttpPost("questions-bank")]
         public IActionResult GenerateQuestions([FromBody] List<Dictionary<string, object>> data)
         {
             return GeneratePdfFromData(data, "BANK PYTAŃ", "Wykaz pytań z bazy");
+        }
+
+        [HttpPost("tests-stats")]
+        public IActionResult GenerateTestStats([FromBody] List<Dictionary<string, object>> data)
+        {
+            return GeneratePdfFromData(data, "STATYSTYKA TESTÓW", "Zestawienie zdawalności");
         }
 
         // =========================================================
@@ -33,15 +60,26 @@ namespace FastReportService.Controllers
             {
                 var report = new Report();
                 
-                string reportPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Reports", "raport_testow.frx");
-                if (!System.IO.File.Exists(reportPath)) reportPath = "Reports/raport_testow.frx";
+                // ZAWSZE używaj bezwzględnej ścieżki w Dockerze
+                string reportPath = Path.Combine(Directory.GetCurrentDirectory(), "Reports", "raport_testow.frx");
+                
+                if (!System.IO.File.Exists(reportPath))
+                {
+                    // Fallback dla developmentu
+                    reportPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Reports", "raport_testow.frx");
+                }
+                
+                if (!System.IO.File.Exists(reportPath))
+                {
+                    return StatusCode(500, new { error = "Nie znaleziono szablonu raportu: " + reportPath });
+                }
                 
                 report.Load(reportPath);
                 
                 try { FixReportVisuals(report); } catch { }
 
                 SetText(report, "Title", title);
-                SetText(report, "Panel1Header", $"Raport wygenerowany: {DateTime.Now:dd.MM.yyyy, HH:mm}");
+                SetText(report, "Panel1Header", "Raport wygenerowany: " + DateTime.Now.ToString("dd.MM.yyyy, HH:mm"));
                 SetText(report, "Panel1Body", subtitle);
                 
                 HideUnusedObjects(report);
@@ -82,7 +120,7 @@ namespace FastReportService.Controllers
             catch (Exception ex)
             {
                 Console.WriteLine($"[ERROR] {ex.Message}\n{ex.StackTrace}");
-                return StatusCode(500, new { error = ex.Message });
+                return StatusCode(500, new { error = ex.Message, details = ex.StackTrace });
             }
         }
 
@@ -128,7 +166,7 @@ namespace FastReportService.Controllers
             return table;
         }
 
-        private void BuildTableForQuestionsBank(DataBand dataBand, DataTable data, Report report) // DODANY PARAMETR Report
+        private void BuildTableForQuestionsBank(DataBand dataBand, DataTable data, Report report)
         {
             // Usuń istniejący obiekt ListItem jeśli istnieje
             var listItem = report.FindObject("ListItem") as FastReport.TextObject;
