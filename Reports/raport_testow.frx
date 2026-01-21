@@ -1,15 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Report ScriptLanguage="CSharp" TextQuality="Regular">
-  <Dictionary>
-    <DataSource Name="Dane" ReferenceName="Dane" DataType="System.Data.DataTable" Enabled="true"/>
-    <DataSource Name="ChartData_Category" ReferenceName="ChartData_Category" DataType="System.Data.DataTable" Enabled="true"/>
-    <DataSource Name="ChartData_Level" ReferenceName="ChartData_Level" DataType="System.Data.DataTable" Enabled="true"/>
-  </Dictionary>
   <ReportPage Name="Page1" PaperWidth="210" PaperHeight="297" TopMargin="20" BottomMargin="20" LeftMargin="20" RightMargin="20">
     
     <!-- Nagłówek systemu -->
     <TextObject Name="SystemHeader" 
-                Left="0" Top="10" Width="680" Height="25"
+                Left="0" Top="10" Width="720" Height="25"
                 Font="Arial, 12pt, Bold"
                 HorzAlign="Center"
                 TextFill.Color="DarkBlue"
@@ -22,7 +17,7 @@
                 Font="Arial, 16pt, Bold"
                 HorzAlign="Center"
                 TextFill.Color="Black"
-                Text="BANK PYTAŃ"/>
+                Text="Tytuł raportu"/>
 
     <!-- Informacja o dacie generowania -->
     <TextObject Name="Panel1Header"
@@ -35,7 +30,7 @@
     <!-- Podtytuł -->
     <TextObject Name="Panel1Body"
                 Left="0" Top="110" Width="680" Height="25"
-                Text="Wykaz pytań z bazy"
+                Text="Podtytuł raportu"
                 Font="Arial, 12pt, Bold"
                 HorzAlign="Center"
                 TextFill.Color="Black"/>
@@ -43,7 +38,7 @@
     <!-- Wykres: Rozkład pytań według kategorii -->
     <ChartObject Name="ChartCategory" Left="20" Top="150" Width="320" Height="200" Border.Lines="All" Border.Color="Silver">
       <Series>
-        <Series ChartType="Pie" Name="SeriesCategory" DataSource="ChartData_Category" ArgumentDataColumn="Kategoria" ValueDataColumn="Ilosc" ColorEach="true"/>
+        <Series ChartType="Pie" Name="SeriesCategory" ArgumentDataColumn="Kategoria" ValueDataColumn="Ilosc" ColorEach="true"/>
       </Series>
       <Title Text="Rozkład pytań według kategorii" Font="Arial, 10pt, Bold" Alignment="TopCenter"/>
       <Legend Alignment="TopRight" Visible="true"/>
@@ -52,7 +47,7 @@
     <!-- Wykres: Rozkład pytań według poziomu trudności -->
     <ChartObject Name="ChartLevel" Left="360" Top="150" Width="300" Height="200" Border.Lines="All" Border.Color="Silver">
       <Series>
-        <Series ChartType="Bar" Name="SeriesLevel" DataSource="ChartData_Level" ArgumentDataColumn="Poziom" ValueDataColumn="Ilosc" ColorEach="true"/>
+        <Series ChartType="Bar" Name="SeriesLevel" ArgumentDataColumn="Poziom" ValueDataColumn="Ilosc" ColorEach="true"/>
       </Series>
       <Title Text="Rozkład pytań według poziomu" Font="Arial, 10pt, Bold" Alignment="TopCenter"/>
       <AxisX Title="Poziom trudności"/>
@@ -63,7 +58,7 @@
     <DataBand Name="ListBand" Top="370" Height="25">
       <TextObject Name="ListItem"
                   Left="0" Top="0" Width="650" Height="20"
-                  Text="• [Dane.Tresc_Pytania]"
+                  Text="• [Tresc_Pytania]"
                   Font="Arial, 9pt"
                   TextFill.Color="Black"/>
     </DataBand>
