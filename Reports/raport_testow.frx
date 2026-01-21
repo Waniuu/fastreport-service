@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Report ScriptLanguage="CSharp" TextQuality="Regular">
-  <ReportPage Name="Page1" PaperWidth="210" PaperHeight="297">
+  <Dictionary>
+    <DataSource Name="Dane" ReferenceName="Dane" DataType="System.Data.DataTable" Enabled="true"/>
+    <DataSource Name="ChartData_Category" ReferenceName="ChartData_Category" DataType="System.Data.DataTable" Enabled="true"/>
+    <DataSource Name="ChartData_Level" ReferenceName="ChartData_Level" DataType="System.Data.DataTable" Enabled="true"/>
+  </Dictionary>
+  <ReportPage Name="Page1" PaperWidth="210" PaperHeight="297" TopMargin="20" BottomMargin="20" LeftMargin="20" RightMargin="20">
     
     <!-- Nagłówek systemu -->
     <TextObject Name="SystemHeader" 
-                Left="0" Top="10" Width="720" Height="25"
+                Left="0" Top="10" Width="680" Height="25"
                 Font="Arial, 12pt, Bold"
                 HorzAlign="Center"
                 TextFill.Color="DarkBlue"
@@ -13,61 +18,54 @@
 
     <!-- Tytuł główny -->
     <TextObject Name="Title" 
-                Left="0" Top="45" Width="720" Height="30"
+                Left="0" Top="45" Width="680" Height="30"
                 Font="Arial, 16pt, Bold"
                 HorzAlign="Center"
                 TextFill.Color="Black"
-                Text="Tytuł raportu"/>
+                Text="BANK PYTAŃ"/>
 
     <!-- Informacja o dacie generowania -->
     <TextObject Name="Panel1Header"
-                Left="20" Top="85" Width="680" Height="20"
+                Left="0" Top="85" Width="680" Height="20"
                 Text="Raport wygenerowany: [Date]"
                 Font="Arial, 10pt, Regular"
-                TextFill.Color="Black"/>
+                TextFill.Color="Black"
+                HorzAlign="Center"/>
 
     <!-- Podtytuł -->
     <TextObject Name="Panel1Body"
-                Left="20" Top="110" Width="680" Height="25"
-                Text="Podtytuł raportu"
+                Left="0" Top="110" Width="680" Height="25"
+                Text="Wykaz pytań z bazy"
                 Font="Arial, 12pt, Bold"
+                HorzAlign="Center"
                 TextFill.Color="Black"/>
 
-    <!-- Sekcja 2 (nieużywana, ukryta) -->
-    <ShapeObject Name="Panel2" 
-                 Left="20" Top="320" Width="680" Height="90"
-                 Fill.Color="#1A1A1A" Fill.Blend="0.35"
-                 Visible="False"/>
+    <!-- Wykres: Rozkład pytań według kategorii -->
+    <ChartObject Name="ChartCategory" Left="20" Top="150" Width="320" Height="200" Border.Lines="All" Border.Color="Silver">
+      <Series>
+        <Series ChartType="Pie" Name="SeriesCategory" DataSource="ChartData_Category" ArgumentDataColumn="Kategoria" ValueDataColumn="Ilosc" ColorEach="true"/>
+      </Series>
+      <Title Text="Rozkład pytań według kategorii" Font="Arial, 10pt, Bold" Alignment="TopCenter"/>
+      <Legend Alignment="TopRight" Visible="true"/>
+    </ChartObject>
 
-    <TextObject Name="Panel2Header"
-                Left="30" Top="330" Width="300" Height="20"
-                Text="Nagłówek sekcji 2"
-                Font="Montserrat, 12pt, Bold"
-                TextFill.Color="#FF3366"
-                Visible="False"/>
+    <!-- Wykres: Rozkład pytań według poziomu trudności -->
+    <ChartObject Name="ChartLevel" Left="360" Top="150" Width="300" Height="200" Border.Lines="All" Border.Color="Silver">
+      <Series>
+        <Series ChartType="Bar" Name="SeriesLevel" DataSource="ChartData_Level" ArgumentDataColumn="Poziom" ValueDataColumn="Ilosc" ColorEach="true"/>
+      </Series>
+      <Title Text="Rozkład pytań według poziomu" Font="Arial, 10pt, Bold" Alignment="TopCenter"/>
+      <AxisX Title="Poziom trudności"/>
+      <AxisY Title="Liczba pytań"/>
+    </ChartObject>
 
-    <TextObject Name="Panel2Body"
-                Left="30" Top="360" Width="650" Height="40"
-                Text="Treść sekcji 2..."
-                Font="Montserrat, 10pt"
-                TextFill.Color="White"
-                Visible="False"/>
-
-    <!-- Lista elementów -->
-    <TextObject Name="ListHeader" 
-                Left="20" Top="430" Width="680" Height="25"
-                Text="Lista elementów:"
-                Font="Montserrat, 14pt, Bold"
-                TextFill.Color="#FF3366"
-                Visible="False"/>
-
-    <!-- Dane tabeli -->
-    <DataBand Name="ListBand" Top="170" Height="30">
+    <!-- Tabela danych -->
+    <DataBand Name="ListBand" Top="370" Height="25">
       <TextObject Name="ListItem"
-                  Left="30" Top="5" Width="650" Height="20"
-                  Text="• Element listy (wstaw tu pole danych)"
-                  Font="Montserrat, 10pt"
-                  TextFill.Color="White"/>
+                  Left="0" Top="0" Width="650" Height="20"
+                  Text="• [Dane.Tresc_Pytania]"
+                  Font="Arial, 9pt"
+                  TextFill.Color="Black"/>
     </DataBand>
 
   </ReportPage>
